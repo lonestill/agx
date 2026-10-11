@@ -8,6 +8,10 @@
 
 **Universal high-performance multitool for Google Antigravity & Jetski** — multi-account switcher, quota auto-rotator, binary gate patcher, token analytics, and interactive TUI.
 
+<p align="center">
+  <img src="assets/tui-accounts.png" alt="agx interactive TUI dashboard" width="850">
+</p>
+
 [English](#english) • [Русский](#русский) • [עברית](#עברית)
 
 ---
@@ -20,7 +24,13 @@ Launches a 7-tab interactive TUI dashboard by default, with dedicated CLI subcom
 
 ### Installation
 
-Download pre-built native binaries from [GitHub Releases](https://github.com/lonestill/agx/releases/latest):
+**One-line automatic install (macOS & Linux):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lonestill/agx/master/install.sh | bash
+```
+
+Or download pre-built native binaries from [GitHub Releases](https://github.com/lonestill/agx/releases/latest):
 
 | OS / Architecture | Package |
 |---|---|
@@ -96,6 +106,15 @@ agx clean
 | `[7]` | **System** | Application versions, file paths, and repository info |
 
 **Global Navigation**: `1`-`7` jump to tab • `Tab` / `Shift+Tab` cycle tabs • `j`/`k` or `↑`/`↓` navigate items • `q`/`Esc` exit.
+
+<p align="center">
+  <img src="assets/tui-stats.png" alt="Token & Cost Analytics" width="49%">
+  <img src="assets/tui-gates.png" alt="Binary Gates & Modding" width="49%">
+</p>
+<p align="center">
+  <img src="assets/tui-cleaner.png" alt="Storage Cleaner" width="49%">
+  <img src="assets/tui-system.png" alt="System Information" width="49%">
+</p>
 
 ### CLI Reference
 
