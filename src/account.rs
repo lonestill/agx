@@ -334,27 +334,43 @@ pub fn write_active_token(token: &StandaloneToken) -> Result<(), String> {
 pub fn list_accounts() -> Result<Vec<(String, StandaloneToken, bool)>, String> {
     let dir = accounts_dir();
     if !dir.exists() {
-        fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let _ = fs::create_dir_all(&dir);
     }
     let active_res = read_active_token().ok();
     let active_refresh = active_res.as_ref().and_then(|t| t.token.refresh_token.as_deref());
 
     let mut list = Vec::new();
-    let entries = fs::read_dir(&dir).map_err(|e| format!("Cannot read accounts dir: {}", e))?;
-
-    for entry in entries.flatten() {
-        let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
-            if let Ok(data) = fs::read_to_string(&path) {
-                if let Ok(tok) = serde_json::from_str::<StandaloneToken>(&data) {
-                    let is_active = match (active_refresh, tok.token.refresh_token.as_deref()) {
-                        (Some(a), Some(b)) => a == b,
-                        _ => false,
-                    };
-                    list.push((name, tok, is_active));
+    if let Ok(entries) = fs::read_dir(&dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                let name = path.file_stem().and_then(|s| s.to_str()).unwrap_or("").to_string();
+                if let Ok(data) = fs::read_to_string(&path) {
+                    if let Ok(tok) = serde_json::from_str::<StandaloneToken>(&data) {
+                        let is_active = match (active_refresh, tok.token.refresh_token.as_deref()) {
+                            (Some(a), Some(b)) => a == b,
+                            _ => false,
+                        };
+                        list.push((name, tok, is_active));
+                    }
                 }
             }
+        }
+    }
+
+    if let Some(active_tok) = &active_res {
+        let has_active = list.iter().any(|(_, _, is_active)| *is_active);
+        if !has_active {
+            let name = active_tok.email.clone().unwrap_or_else(|| "default".to_string());
+            let path = dir.join(format!("{}.json", name));
+            if !path.exists() {
+                let mut tok_to_save = active_tok.clone();
+                tok_to_save.saved_at = Some(Utc::now().to_rfc3339());
+                if let Ok(c) = serde_json::to_string_pretty(&tok_to_save) {
+                    let _ = fs::write(&path, c);
+                }
+            }
+            list.push((name, active_tok.clone(), true));
         }
     }
 
@@ -364,11 +380,16 @@ pub fn list_accounts() -> Result<Vec<(String, StandaloneToken, bool)>, String> {
 
 pub fn load_account(name: &str) -> Result<StandaloneToken, String> {
     let path = accounts_dir().join(format!("{}.json", name));
-    if !path.exists() {
-        return Err(format!("Account '{}' not found in {}", name, accounts_dir().display()));
+    if path.exists() {
+        let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+        return serde_json::from_str(&data).map_err(|e| format!("Invalid profile format: {}", e));
     }
-    let data = fs::read_to_string(&path).map_err(|e| e.to_string())?;
-    serde_json::from_str(&data).map_err(|e| format!("Invalid profile format: {}", e))
+    if let Ok(active) = read_active_token() {
+        if name == "active" || name == "default" || active.email.as_deref() == Some(name) {
+            return Ok(active);
+        }
+    }
+    Err(format!("Account '{}' not found in {}", name, accounts_dir().display()))
 }
 
 pub fn save_account(name: &str) -> Result<(), String> {

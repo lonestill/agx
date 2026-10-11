@@ -261,13 +261,27 @@ impl AppState {
     }
 
     pub fn refresh_quotas(&mut self) {
-        let mut lock = self.rows.lock().unwrap();
-        for r in lock.iter_mut() {
-            r.is_loading = true;
-            r.gemini_5h = "loading...".to_string();
-            r.claude_5h = "loading...".to_string();
-            r.error = None;
+        let raw_accounts = list_accounts().unwrap_or_default();
+        let mut new_rows = Vec::new();
+        for (name, token, is_active) in &raw_accounts {
+            let exp = match &token.token.expiry {
+                Some(e) if e.len() >= 10 => e[..10].to_string(),
+                _ => "—".to_string(),
+            };
+            new_rows.push(AccountRow {
+                name: name.clone(),
+                is_active: *is_active,
+                token_exp: exp,
+                gemini_5h: "loading...".to_string(),
+                gemini_wk: "—".to_string(),
+                claude_5h: "loading...".to_string(),
+                claude_wk: "—".to_string(),
+                is_loading: true,
+                error: None,
+            });
         }
+        let mut lock = self.rows.lock().unwrap();
+        *lock = new_rows;
         self.status = "refreshing quotas...".to_string();
         self.status_color = Color::Cyan;
         Self::spawn_quota_loader(Arc::clone(&self.rows));
@@ -636,55 +650,70 @@ fn render_accounts_tab(f: &mut Frame, area: Rect, state: &AppState) {
     .bottom_margin(1);
 
     let rows_guard = state.rows.lock().unwrap();
-    let rows: Vec<Row> = rows_guard
-        .iter()
-        .enumerate()
-        .map(|(i, r)| {
-            let is_sel = i == state.selected_account;
-            let cursor = if is_sel { "▶" } else { " " };
-            let active_mark = if r.is_active { "●" } else { " " };
-
-            let row_style = if is_sel {
-                Style::default().fg(Color::White).bg(Color::Rgb(32, 38, 50)).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::Gray)
-            };
-
-            let name_style = if r.is_active {
-                Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
-            } else {
-                Style::default().fg(Color::White)
-            };
-
-            let g5h_style = if r.gemini_5h.starts_with("0%") {
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-            } else if r.gemini_5h.contains("loading") {
-                Style::default().fg(Color::DarkGray)
-            } else {
-                Style::default().fg(Color::Green)
-            };
-
-            let c5h_style = if r.claude_5h.starts_with("0%") {
-                Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-            } else if r.claude_5h.contains("loading") {
-                Style::default().fg(Color::DarkGray)
-            } else {
-                Style::default().fg(Color::Green)
-            };
-
+    let rows: Vec<Row> = if rows_guard.is_empty() {
+        vec![
             Row::new(vec![
-                Cell::from(cursor).style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
-                Cell::from(active_mark).style(Style::default().fg(Color::Green)),
-                Cell::from(r.name.clone()).style(name_style),
-                Cell::from(r.gemini_5h.clone()).style(g5h_style),
-                Cell::from(r.gemini_wk.clone()),
-                Cell::from(r.claude_5h.clone()).style(c5h_style),
-                Cell::from(r.claude_wk.clone()),
-                Cell::from(r.token_exp.clone()).style(Style::default().fg(Color::DarkGray)),
+                Cell::from(""),
+                Cell::from("●").style(Style::default().fg(Color::Yellow)),
+                Cell::from("(no profiles)").style(Style::default().fg(Color::Yellow)),
+                Cell::from("press 'r' to reload or 'agx account save <name>'").style(Style::default().fg(Color::DarkGray)),
+                Cell::from(""),
+                Cell::from(""),
+                Cell::from(""),
+                Cell::from(""),
             ])
-            .style(row_style)
-        })
-        .collect();
+        ]
+    } else {
+        rows_guard
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                let is_sel = i == state.selected_account;
+                let cursor = if is_sel { "▶" } else { " " };
+                let active_mark = if r.is_active { "●" } else { " " };
+
+                let row_style = if is_sel {
+                    Style::default().fg(Color::White).bg(Color::Rgb(32, 38, 50)).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::Gray)
+                };
+
+                let name_style = if r.is_active {
+                    Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(Color::White)
+                };
+
+                let g5h_style = if r.gemini_5h.starts_with("0%") {
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                } else if r.gemini_5h.contains("loading") {
+                    Style::default().fg(Color::DarkGray)
+                } else {
+                    Style::default().fg(Color::Green)
+                };
+
+                let c5h_style = if r.claude_5h.starts_with("0%") {
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                } else if r.claude_5h.contains("loading") {
+                    Style::default().fg(Color::DarkGray)
+                } else {
+                    Style::default().fg(Color::Green)
+                };
+
+                Row::new(vec![
+                    Cell::from(cursor).style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD)),
+                    Cell::from(active_mark).style(Style::default().fg(Color::Green)),
+                    Cell::from(r.name.clone()).style(name_style),
+                    Cell::from(r.gemini_5h.clone()).style(g5h_style),
+                    Cell::from(r.gemini_wk.clone()),
+                    Cell::from(r.claude_5h.clone()).style(c5h_style),
+                    Cell::from(r.claude_wk.clone()),
+                    Cell::from(r.token_exp.clone()).style(Style::default().fg(Color::DarkGray)),
+                ])
+                .style(row_style)
+            })
+            .collect()
+    };
 
     let widths = [
         Constraint::Length(2),
