@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-macos:
+    name: Build macOS (Universal, Apple Silicon, Intel)
+    runs-on: macos-14
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+
+      - name: Build Apple Silicon (aarch64)
+        run: cargo build --release --target aarch64-apple-darwin
+
+      - name: Build Intel (x86_64)
+        run: cargo build --release --target x86_64-apple-darwin
+
+      - name: Create Universal Binary
+        run: |
+          mkdir -p target/universal
+          lipo -create -output target/universal/agx \
+            target/aarch64-apple-darwin/release/agx \
+            target/x86_64-apple-darwin/release/agx
+
+      - name: Package macOS releases
+        run: |
+          VERSION=${GITHUB_REF_NAME:-v1.3.0}
+          mkdir -p artifacts
+          
+          # 1. Universal Binary
+          mkdir -p dist-universal && cp target/universal/agx dist-universal/ && cp README.md dist-universal/
+          tar -czvf "artifacts/agx-${VERSION}-macos-universal.tar.gz" -C dist-universal agx README.md
+          
+          # 2. Apple Silicon (ARM64)
+          mkdir -p dist-arm64 && cp target/aarch64-apple-darwin/release/agx dist-arm64/ && cp README.md dist-arm64/
+          tar -czvf "artifacts/agx-${VERSION}-macos-arm64.tar.gz" -C dist-arm64 agx README.md
+          
+          # 3. Intel (x86_64)
+          mkdir -p dist-x64 && cp target/x86_64-apple-darwin/release/agx dist-x64/ && cp README.md dist-x64/
+          tar -czvf "artifacts/agx-${VERSION}-macos-x86_64.tar.gz" -C dist-x64 agx README.md
+          
+          # Generate checksums
+          cd artifacts
+          shasum -a 256 *.tar.gz > checksums-macos.txt
+
+      - name: Upload macOS Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-binaries
+          path: artifacts/*
+
+  build-linux:
+    name: Build Linux (x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install SQLite headers
+        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package Linux release
+        run: |
+          VERSION=${GITHUB_REF_NAME:-v1.3.0}
+          mkdir -p artifacts dist-linux
+          cp target/release/agx dist-linux/ && cp README.md dist-linux/
+          tar -czvf "artifacts/agx-${VERSION}-linux-x86_64.tar.gz" -C dist-linux agx README.md
+          cd artifacts
+          shasum -a 256 *.tar.gz > checksums-linux.txt
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-binaries
+          path: artifacts/*
+
+  publish-release:
+    name: Publish GitHub Release
+    needs: [build-macos, build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download all built artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-files
+          merge-multiple: true
+
+      - name: Combine Checksums
+        run: |
+          cd release-files
+          cat checksums-macos.txt checksums-linux.txt > SHA256SUMS.txt
+          rm -f checksums-macos.txt checksums-linux.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "agx ${{ github.ref_name }}"
+          generate_release_notes: true
+          files: release-files/*
