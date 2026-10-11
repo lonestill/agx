@@ -301,21 +301,24 @@ pub fn format_expiry(expiry_str: Option<&str>) -> String {
 
 pub fn sync_ide_state(token: &StandaloneToken) {
     let home = dirs_home();
-    let dbs = [
+    let mut dbs = vec![
         home.join("Library/Application Support/Antigravity IDE/User/globalStorage/state.vscdb"),
         home.join(".config/Antigravity IDE/User/globalStorage/state.vscdb"),
     ];
 
-    for db in &dbs {
-        if db.exists() {
-            if let Some(access) = &token.token.access_token {
-                let _ = std::process::Command::new("sqlite3")
-                    .arg(db)
-                    .arg(format!(
-                        "INSERT INTO ItemTable(key,value) VALUES('antigravityUnifiedStateSync.oauthToken', '{}') ON CONFLICT(key) DO UPDATE SET value=excluded.value;",
-                        access
-                    ))
-                    .output();
+    if let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) {
+        dbs.push(appdata.join("Antigravity IDE/User/globalStorage/state.vscdb"));
+    }
+
+    if let Some(access) = &token.token.access_token {
+        for db in &dbs {
+            if db.exists() {
+                if let Ok(conn) = rusqlite::Connection::open(db) {
+                    let _ = conn.execute(
+                        "INSERT INTO ItemTable(key,value) VALUES('antigravityUnifiedStateSync.oauthToken', ?1) ON CONFLICT(key) DO UPDATE SET value=excluded.value;",
+                        rusqlite::params![access],
+                    );
+                }
             }
         }
     }

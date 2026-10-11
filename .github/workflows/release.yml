@@ -37,7 +37,7 @@ jobs:
 
       - name: Package macOS releases
         run: |
-          VERSION=${GITHUB_REF_NAME:-v1.3.0}
+          VERSION=${GITHUB_REF_NAME:-v1.3.1}
           mkdir -p artifacts
           
           # 1. Universal Binary
@@ -69,9 +69,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install SQLite headers
-        run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev
-
       - name: Set up Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
@@ -80,7 +77,7 @@ jobs:
 
       - name: Package Linux release
         run: |
-          VERSION=${GITHUB_REF_NAME:-v1.3.0}
+          VERSION=${GITHUB_REF_NAME:-v1.3.1}
           mkdir -p artifacts dist-linux
           cp target/release/agx dist-linux/ && cp README.md dist-linux/
           tar -czvf "artifacts/agx-${VERSION}-linux-x86_64.tar.gz" -C dist-linux agx README.md
@@ -93,9 +90,43 @@ jobs:
           name: linux-binaries
           path: artifacts/*
 
+  build-windows:
+    name: Build Windows (x86_64)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build release
+        run: cargo build --release
+
+      - name: Package Windows release
+        shell: bash
+        run: |
+          VERSION=${GITHUB_REF_NAME:-v1.3.1}
+          mkdir -p artifacts dist-win
+          cp target/release/agx.exe dist-win/
+          cp README.md dist-win/
+          
+          # Create zip archive for Windows
+          cd dist-win
+          7z a -tzip "../artifacts/agx-${VERSION}-windows-x86_64.zip" agx.exe README.md
+          
+          cd ../artifacts
+          shasum -a 256 *.zip > checksums-windows.txt
+
+      - name: Upload Windows Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-binaries
+          path: artifacts/*
+
   publish-release:
     name: Publish GitHub Release
-    needs: [build-macos, build-linux]
+    needs: [build-macos, build-linux, build-windows]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -110,8 +141,8 @@ jobs:
       - name: Combine Checksums
         run: |
           cd release-files
-          cat checksums-macos.txt checksums-linux.txt > SHA256SUMS.txt
-          rm -f checksums-macos.txt checksums-linux.txt
+          cat checksums-macos.txt checksums-linux.txt checksums-windows.txt > SHA256SUMS.txt
+          rm -f checksums-macos.txt checksums-linux.txt checksums-windows.txt
 
       - name: Create Release
         uses: softprops/action-gh-release@v2

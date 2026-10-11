@@ -37,39 +37,40 @@ fn home_dir() -> PathBuf {
 /// Hardcoded safety check to guarantee we NEVER delete chats, code projects, or transcripts.
 pub fn is_path_safe_to_delete(path: &Path) -> bool {
     let s = path.to_string_lossy();
+    let s_norm = s.replace('\\', "/");
 
     // 1. Blacklist: instant rejection if it touches any user data or transcripts
-    if s.contains("/conversations")
-        || s.contains("/scratch")
-        || s.contains("/accounts")
-        || s.contains("/config")
-        || s.contains("transcript")
-        || s.contains(".user_uploaded")
-        || s.contains(".git")
-        || s.ends_with(".db")
-        || s.ends_with(".vscdb")
-        || (s.ends_with(".json") && s.contains("/accounts/"))
+    if s_norm.contains("/conversations")
+        || s_norm.contains("/scratch")
+        || s_norm.contains("/accounts")
+        || s_norm.contains("/config")
+        || s_norm.contains("transcript")
+        || s_norm.contains(".user_uploaded")
+        || s_norm.contains(".git")
+        || s_norm.ends_with(".db")
+        || s_norm.ends_with(".vscdb")
+        || (s_norm.ends_with(".json") && s_norm.contains("/accounts/"))
     {
         return false;
     }
 
     // 2. Strict Whitelist: must belong to known disposable cache / temp categories
-    s.contains("Cache")
-        || s.contains("GPUCache")
-        || s.contains("Code Cache")
-        || s.contains(".tempmediaStorage")
-        || s.ends_with("/.system_generated/tasks")
-        || s.ends_with("/tasks") && s.contains("/.system_generated/")
-        || s.ends_with("/crashes")
-        || s.ends_with("/cache")
+    s_norm.contains("Cache")
+        || s_norm.contains("GPUCache")
+        || s_norm.contains("Code Cache")
+        || s_norm.contains(".tempmediaStorage")
+        || s_norm.ends_with("/.system_generated/tasks")
+        || (s_norm.ends_with("/tasks") && s_norm.contains("/.system_generated/"))
+        || s_norm.ends_with("/crashes")
+        || s_norm.ends_with("/cache")
 }
 
 pub fn scan_clean_categories() -> Vec<CleanCategory> {
     let home = home_dir();
     let mut categories = Vec::new();
 
-    // 1. Electron & Chromium Caches (100% disposable, rebuilt on app start)
-    let electron_paths = vec![
+    // 1. Electron & Chromium Caches (macOS, Windows, Linux)
+    let mut electron_paths = vec![
         home.join("Library/Caches/com.google.antigravity"),
         home.join("Library/Caches/com.google.antigravity-ide"),
         home.join("Library/Application Support/Antigravity/Cache"),
@@ -79,6 +80,18 @@ pub fn scan_clean_categories() -> Vec<CleanCategory> {
         home.join("Library/Application Support/Antigravity IDE/Code Cache"),
         home.join("Library/Application Support/Antigravity IDE/GPUCache"),
     ];
+
+    if let Some(local_appdata) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        electron_paths.push(local_appdata.join("Antigravity/Cache"));
+        electron_paths.push(local_appdata.join("Antigravity/Code Cache"));
+        electron_paths.push(local_appdata.join("Antigravity/GPUCache"));
+    }
+    if let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) {
+        electron_paths.push(appdata.join("Antigravity IDE/Cache"));
+        electron_paths.push(appdata.join("Antigravity IDE/Code Cache"));
+        electron_paths.push(appdata.join("Antigravity IDE/GPUCache"));
+    }
+
     let (existing_electron, electron_bytes) = gather_existing_and_size(&electron_paths);
     categories.push(CleanCategory {
         id: "electron_cache",

@@ -143,48 +143,64 @@ pub fn check_doctor() -> DoctorReport {
         warn_count += 1;
     }
 
-    // 5. Code signing check
-    let mut sign_ok = true;
-    for t in &targets {
-        if let Some(p) = &t.path {
-            let out = Command::new("codesign").args(["-v", p.to_str().unwrap_or("")]).output();
-            if let Ok(o) = out {
-                if !o.status.success() {
-                    sign_ok = false;
+    // 5. Code signing check (macOS only)
+    if cfg!(target_os = "macos") {
+        let mut sign_ok = true;
+        for t in &targets {
+            if let Some(p) = &t.path {
+                let out = Command::new("codesign").args(["-v", p.to_str().unwrap_or("")]).output();
+                if let Ok(o) = out {
+                    if !o.status.success() {
+                        sign_ok = false;
+                    }
                 }
             }
         }
-    }
-    if sign_ok {
-        items.push(DoctorItem {
-            title: "macOS Code Signatures".to_string(),
-            status: DoctorStatus::Ok,
-            detail: "All target binaries pass signature verification.".to_string(),
-        });
-        ok_count += 1;
-    } else {
-        items.push(DoctorItem {
-            title: "macOS Code Signatures".to_string(),
-            status: DoctorStatus::Warn,
-            detail: "Invalid signature on patched binary. Run 'agx patch apply all' to re-sign.".to_string(),
-        });
-        warn_count += 1;
+        if sign_ok {
+            items.push(DoctorItem {
+                title: "macOS Code Signatures".to_string(),
+                status: DoctorStatus::Ok,
+                detail: "All target binaries pass signature verification.".to_string(),
+            });
+            ok_count += 1;
+        } else {
+            items.push(DoctorItem {
+                title: "macOS Code Signatures".to_string(),
+                status: DoctorStatus::Warn,
+                detail: "Invalid signature on patched binary. Run 'agx patch apply all' to re-sign.".to_string(),
+            });
+            warn_count += 1;
+        }
     }
 
     // 6. Running background processes & helpers
-    let ps_out = Command::new("ps").args(["-ax", "-o", "pid,command"]).output().ok();
     let mut lang_server_pids = Vec::new();
     let mut helper_pids = Vec::new();
-    if let Some(o) = ps_out {
-        let text = String::from_utf8_lossy(&o.stdout);
-        for line in text.lines() {
-            if line.contains("language_server") && !line.contains("grep") {
-                if let Some(pid) = line.split_whitespace().next() {
-                    lang_server_pids.push(pid.to_string());
+    if cfg!(target_os = "windows") {
+        let task_out = Command::new("tasklist").output().ok();
+        if let Some(o) = task_out {
+            let text = String::from_utf8_lossy(&o.stdout);
+            for line in text.lines() {
+                if line.contains("language_server") {
+                    lang_server_pids.push("active".to_string());
+                } else if line.contains("Antigravity") {
+                    helper_pids.push("active".to_string());
                 }
-            } else if line.contains("Antigravity Helper") && !line.contains("grep") {
-                if let Some(pid) = line.split_whitespace().next() {
-                    helper_pids.push(pid.to_string());
+            }
+        }
+    } else {
+        let ps_out = Command::new("ps").args(["-ax", "-o", "pid,command"]).output().ok();
+        if let Some(o) = ps_out {
+            let text = String::from_utf8_lossy(&o.stdout);
+            for line in text.lines() {
+                if line.contains("language_server") && !line.contains("grep") {
+                    if let Some(pid) = line.split_whitespace().next() {
+                        lang_server_pids.push(pid.to_string());
+                    }
+                } else if line.contains("Antigravity Helper") && !line.contains("grep") {
+                    if let Some(pid) = line.split_whitespace().next() {
+                        helper_pids.push(pid.to_string());
+                    }
                 }
             }
         }
