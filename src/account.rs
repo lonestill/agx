@@ -79,13 +79,247 @@ pub fn dirs_home() -> PathBuf {
     home_dir()
 }
 
+#[cfg(windows)]
+pub fn read_win_cred(target: &str) -> Option<Vec<u8>> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::ffi::OsStr;
+
+    #[repr(C)]
+    struct CREDENTIALW {
+        flags: u32,
+        cred_type: u32,
+        target_name: *mut u16,
+        comment: *mut u16,
+        last_written: [u32; 2],
+        credential_blob_size: u32,
+        credential_blob: *mut u8,
+        persist: u32,
+        attribute_count: u32,
+        attributes: *mut std::ffi::c_void,
+        target_alias: *mut u16,
+        user_name: *mut u16,
+    }
+
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn CredReadW(
+            target_name: *const u16,
+            cred_type: u32,
+            flags: u32,
+            credential: *mut *mut CREDENTIALW,
+        ) -> i32;
+        fn CredFree(buffer: *mut std::ffi::c_void);
+    }
+
+    let mut wide_target: Vec<u16> = OsStr::new(target).encode_wide().collect();
+    wide_target.push(0);
+
+    let mut p_cred: *mut CREDENTIALW = std::ptr::null_mut();
+    // 1 = CRED_TYPE_GENERIC
+    let success = unsafe { CredReadW(wide_target.as_ptr(), 1, 0, &mut p_cred) };
+    if success != 0 && !p_cred.is_null() {
+        let size = unsafe { (*p_cred).credential_blob_size as usize };
+        let blob_ptr = unsafe { (*p_cred).credential_blob };
+        let bytes = if size > 0 && !blob_ptr.is_null() {
+            let slice = unsafe { std::slice::from_raw_parts(blob_ptr, size) };
+            Some(slice.to_vec())
+        } else {
+            None
+        };
+        unsafe { CredFree(p_cred as *mut std::ffi::c_void) };
+        bytes
+    } else {
+        None
+    }
+}
+
+#[cfg(windows)]
+pub fn write_win_cred(target: &str, blob: &[u8], user: &str) -> Result<(), String> {
+    use std::os::windows::ffi::OsStrExt;
+    use std::ffi::OsStr;
+
+    #[repr(C)]
+    struct CREDENTIALW {
+        flags: u32,
+        cred_type: u32,
+        target_name: *mut u16,
+        comment: *mut u16,
+        last_written: [u32; 2],
+        credential_blob_size: u32,
+        credential_blob: *mut u8,
+        persist: u32,
+        attribute_count: u32,
+        attributes: *mut std::ffi::c_void,
+        target_alias: *mut u16,
+        user_name: *mut u16,
+    }
+
+    #[link(name = "advapi32")]
+    extern "system" {
+        fn CredWriteW(credential: *const CREDENTIALW, flags: u32) -> i32;
+    }
+
+    let mut wide_target: Vec<u16> = OsStr::new(target).encode_wide().collect();
+    wide_target.push(0);
+    let mut wide_user: Vec<u16> = OsStr::new(user).encode_wide().collect();
+    wide_user.push(0);
+
+    let cred = CREDENTIALW {
+        flags: 0,
+        cred_type: 1, // CRED_TYPE_GENERIC
+        target_name: wide_target.as_mut_ptr(),
+        comment: std::ptr::null_mut(),
+        last_written: [0, 0],
+        credential_blob_size: blob.len() as u32,
+        credential_blob: blob.as_ptr() as *mut u8,
+        persist: 2, // CRED_PERSIST_LOCAL_MACHINE
+        attribute_count: 0,
+        attributes: std::ptr::null_mut(),
+        target_alias: std::ptr::null_mut(),
+        user_name: wide_user.as_mut_ptr(),
+    };
+
+    let res = unsafe { CredWriteW(&cred, 0) };
+    if res != 0 {
+        Ok(())
+    } else {
+        Err("CredWriteW failed".to_string())
+    }
+}
+
+#[cfg(not(windows))]
+#[allow(dead_code)]
+pub fn read_win_cred(_: &str) -> Option<Vec<u8>> { None }
+
+#[cfg(not(windows))]
+#[allow(dead_code)]
+pub fn write_win_cred(_: &str, _: &[u8], _: &str) -> Result<(), String> { Ok(()) }
+
+pub fn parse_raw_token_data(raw: &str) -> Option<StandaloneToken> {
+    if let Ok(mut tok) = serde_json::from_str::<StandaloneToken>(raw) {
+        if tok.email.is_none() {
+            if let Ok(re) = regex::Regex::new(r#""email"\s*:\s*"([^"]+)""#) {
+                if let Some(cap) = re.captures(raw) {
+                    tok.email = Some(cap[1].to_string());
+                }
+            }
+        }
+        return Some(tok);
+    }
+
+    if let Ok(data) = serde_json::from_str::<OAuthTokenData>(raw) {
+        return Some(StandaloneToken {
+            token: data,
+            auth_method: "oauth".to_string(),
+            email: None,
+            saved_at: Some(Utc::now().to_rfc3339()),
+        });
+    }
+
+    let access_re = regex::Regex::new(r"ya29\.[a-zA-Z0-9_\-]+").ok()?;
+    let refresh_re = regex::Regex::new(r"1//[a-zA-Z0-9_\-]+").ok()?;
+
+    let access = access_re.find(raw).map(|m| m.as_str().to_string());
+    let refresh = refresh_re.find(raw).map(|m| m.as_str().to_string());
+
+    if access.is_some() || refresh.is_some() {
+        let mut email = None;
+        if let Ok(email_re) = regex::Regex::new(r#""email"\s*:\s*"([^"]+)""#) {
+            if let Some(cap) = email_re.captures(raw) {
+                email = Some(cap[1].to_string());
+            }
+        }
+        return Some(StandaloneToken {
+            token: OAuthTokenData {
+                access_token: access,
+                token_type: Some("Bearer".to_string()),
+                refresh_token: refresh,
+                expiry: None,
+            },
+            auth_method: "extracted".to_string(),
+            email,
+            saved_at: Some(Utc::now().to_rfc3339()),
+        });
+    }
+
+    None
+}
+
+pub fn read_from_windows_credentials() -> Option<StandaloneToken> {
+    for target in &["gemini:antigravity", "LegacyGeneric:target=gemini:antigravity"] {
+        if let Some(bytes) = read_win_cred(target) {
+            if let Ok(s) = String::from_utf8(bytes.clone()) {
+                if let Some(tok) = parse_raw_token_data(&s) {
+                    return Some(tok);
+                }
+            }
+            let latin1: String = bytes.iter().map(|&b| b as char).collect();
+            if let Some(tok) = parse_raw_token_data(&latin1) {
+                return Some(tok);
+            }
+        }
+    }
+    None
+}
+
+pub fn read_from_ide_database() -> Option<StandaloneToken> {
+    let mut cands = Vec::new();
+    let home = dirs_home();
+
+    if let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) {
+        cands.push(appdata.join("Antigravity IDE/User/globalStorage/state.vscdb"));
+    }
+    if let Some(local) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        cands.push(local.join("Antigravity IDE/User/globalStorage/state.vscdb"));
+    }
+    cands.push(home.join(".gemini/antigravity-ide/User/globalStorage/state.vscdb"));
+    cands.push(home.join("Library/Application Support/Antigravity IDE/User/globalStorage/state.vscdb"));
+    cands.push(home.join(".config/Antigravity IDE/User/globalStorage/state.vscdb"));
+
+    for db_path in cands {
+        if !db_path.exists() {
+            continue;
+        }
+        if let Ok(conn) = rusqlite::Connection::open_with_flags(
+            &db_path,
+            rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_URI,
+        ) {
+            let val_res: Result<String, _> = conn.query_row(
+                "SELECT value FROM ItemTable WHERE key = 'antigravityUnifiedStateSync.oauthToken'",
+                [],
+                |row| row.get(0),
+            );
+            if let Ok(val) = val_res {
+                if let Some(tok) = parse_raw_token_data(&val) {
+                    return Some(tok);
+                }
+            }
+        }
+    }
+    None
+}
+
 pub fn read_active_token() -> Result<StandaloneToken, String> {
     let p = active_token_path();
-    if !p.exists() {
-        return Err(format!("Active token not found at {}", p.display()));
+    if p.exists() {
+        if let Ok(data) = fs::read_to_string(&p) {
+            if let Some(tok) = parse_raw_token_data(&data) {
+                return Ok(tok);
+            }
+        }
     }
-    let data = fs::read_to_string(&p).map_err(|e| format!("Failed to read active token: {}", e))?;
-    serde_json::from_str(&data).map_err(|e| format!("Invalid JSON in active token: {}", e))
+
+    if let Some(tok) = read_from_windows_credentials() {
+        let _ = write_active_token(&tok);
+        return Ok(tok);
+    }
+
+    if let Some(tok) = read_from_ide_database() {
+        let _ = write_active_token(&tok);
+        return Ok(tok);
+    }
+
+    Err(format!("Active token not found at {} or in Windows Credential Manager / IDE database", p.display()))
 }
 
 pub fn write_active_token(token: &StandaloneToken) -> Result<(), String> {
@@ -174,6 +408,13 @@ pub fn switch_account(target: &str) -> Result<(), String> {
 
     // Sync to IDE database if present
     sync_ide_state(&target_token);
+
+    #[cfg(windows)]
+    {
+        if let Ok(raw_json) = serde_json::to_string(&target_token) {
+            let _ = write_win_cred("gemini:antigravity", raw_json.as_bytes(), "antigravity");
+        }
+    }
 
     Ok(())
 }
