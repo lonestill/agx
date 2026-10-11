@@ -56,10 +56,27 @@ pub fn active_token_path() -> PathBuf {
     gemini_dir().join("jetski-standalone-oauth-token")
 }
 
-fn dirs_home() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
+pub fn home_dir() -> PathBuf {
+    if let Some(h) = std::env::var_os("HOME") {
+        if !h.is_empty() {
+            return PathBuf::from(h);
+        }
+    }
+    if let Some(u) = std::env::var_os("USERPROFILE") {
+        if !u.is_empty() {
+            return PathBuf::from(u);
+        }
+    }
+    if let (Some(drive), Some(path)) = (std::env::var_os("HOMEDRIVE"), std::env::var_os("HOMEPATH")) {
+        let mut b = PathBuf::from(drive);
+        b.push(path);
+        return b;
+    }
+    PathBuf::from(".")
+}
+
+pub fn dirs_home() -> PathBuf {
+    home_dir()
 }
 
 pub fn read_active_token() -> Result<StandaloneToken, String> {

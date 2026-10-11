@@ -80,65 +80,411 @@ pub fn inspect_ide_target() -> TargetInfo {
 }
 
 fn home_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
+    crate::account::home_dir()
+}
+
+fn which_binary(names: &[&str]) -> Option<PathBuf> {
+    let cmd = if cfg!(target_os = "windows") { "where" } else { "which" };
+    for name in names {
+        if let Ok(out) = Command::new(cmd).arg(name).output() {
+            if out.status.success() {
+                let text = String::from_utf8_lossy(&out.stdout);
+                for line in text.lines() {
+                    let trimmed = line.trim();
+                    if !trimmed.is_empty() {
+                        let p = PathBuf::from(trimmed);
+                        if p.is_file() {
+                            return Some(p);
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn find_running_process_path(name: &str) -> Option<PathBuf> {
+    let script = format!(
+        "$p = Get-Process -Name '*{}*' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Path -ErrorAction SilentlyContinue; if ($p) {{ $p }}",
+        name
+    );
+    if let Ok(out) = Command::new("powershell")
+        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .output()
+    {
+        if out.status.success() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            for line in text.lines() {
+                let trimmed = line.trim();
+                if !trimmed.is_empty() {
+                    let p = PathBuf::from(trimmed);
+                    if p.is_file() {
+                        return Some(p);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+#[allow(dead_code)]
+#[cfg(not(target_os = "windows"))]
+fn find_running_process_path(_name: &str) -> Option<PathBuf> {
+    None
+}
+
+fn get_candidate_app_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    let home = home_dir();
+
+    if let Ok(val) = std::env::var("ANTIGRAVITY_HOME") {
+        dirs.push(PathBuf::from(val));
+    }
+
+    dirs.push(PathBuf::from("/Applications/Antigravity.app"));
+    dirs.push(PathBuf::from("/Applications/Antigravity IDE.app"));
+    dirs.push(PathBuf::from("/Applications/Google Antigravity.app"));
+    dirs.push(home.join("Applications/Antigravity.app"));
+    dirs.push(home.join("Applications/Antigravity IDE.app"));
+
+    dirs.push(PathBuf::from("/opt/Antigravity"));
+    dirs.push(PathBuf::from("/opt/antigravity"));
+    dirs.push(PathBuf::from("/opt/antigravity-ide"));
+    dirs.push(PathBuf::from("/opt/Google/Antigravity"));
+    dirs.push(home.join(".local/share/Antigravity"));
+    dirs.push(home.join(".local/share/antigravity"));
+
+    let mut win_bases = Vec::new();
+    if let Some(la) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        win_bases.push(la.join("Programs"));
+        win_bases.push(la);
+    }
+    if let Some(ap) = std::env::var_os("APPDATA").map(PathBuf::from) {
+        win_bases.push(ap.join("Programs"));
+        win_bases.push(ap);
+    }
+    if let Some(pf) = std::env::var_os("ProgramFiles").map(PathBuf::from) {
+        win_bases.push(pf);
+    }
+    if let Some(pf86) = std::env::var_os("ProgramFiles(x86)").map(PathBuf::from) {
+        win_bases.push(pf86);
+    }
+    win_bases.push(PathBuf::from("C:\\Program Files"));
+    win_bases.push(PathBuf::from("C:\\Program Files (x86)"));
+    win_bases.push(home.join("AppData/Local/Programs"));
+    win_bases.push(home.join("AppData/Local"));
+    win_bases.push(home.join("AppData/Roaming"));
+
+    let folder_names = [
+        "Antigravity",
+        "Antigravity IDE",
+        "antigravity",
+        "antigravity-ide",
+        "Google/Antigravity",
+        "Google/Antigravity IDE",
+        "Google Antigravity",
+        "Google",
+    ];
+
+    for base in &win_bases {
+        for name in &folder_names {
+            dirs.push(base.join(name));
+        }
+    }
+
+    dirs.push(PathBuf::from("C:\\Antigravity"));
+    dirs.push(PathBuf::from("C:\\Antigravity IDE"));
+    dirs.push(PathBuf::from("D:\\Antigravity"));
+    dirs.push(PathBuf::from("D:\\Antigravity IDE"));
+    dirs.push(home.join(".antigravity"));
+    dirs.push(home.join(".gemini/antigravity"));
+
+    dirs
 }
 
 pub fn find_cli_binary() -> Option<PathBuf> {
-    // 1. which agy
-    if let Ok(out) = Command::new("which").arg("agy").output() {
-        if out.status.success() {
-            let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-            let p = PathBuf::from(s);
-            if p.exists() {
+    for var in &["AGX_CLI_PATH", "AGX_AGY_PATH"] {
+        if let Ok(v) = std::env::var(var) {
+            let p = PathBuf::from(v);
+            if p.is_file() {
                 return Some(p);
             }
         }
     }
 
-    let cands = [
-        home_dir().join(".local/bin/agy"),
-        home_dir().join("bin/agy"),
+    if let Some(p) = which_binary(&["agy.exe", "agy.cmd", "agy.bat", "agy"]) {
+        return Some(p);
+    }
+
+    let home = home_dir();
+    let direct_cands = [
+        home.join(".local/bin/agy.exe"),
+        home.join(".local/bin/agy.cmd"),
+        home.join(".local/bin/agy"),
+        home.join("bin/agy.exe"),
+        home.join("bin/agy.cmd"),
+        home.join("bin/agy"),
         PathBuf::from("/usr/local/bin/agy"),
-        PathBuf::from("/Applications/Antigravity.app/Contents/Resources/bin/agy"),
     ];
 
-    for c in &cands {
-        if c.exists() {
+    for c in &direct_cands {
+        if c.is_file() {
             return Some(c.clone());
         }
     }
+
+    let candidates = get_candidate_app_dirs();
+    let relative_paths = [
+        "resources/bin/agy.exe",
+        "resources/bin/agy.cmd",
+        "resources/bin/agy",
+        "bin/agy.exe",
+        "bin/agy.cmd",
+        "bin/agy",
+        "agy.exe",
+        "agy.cmd",
+        "agy",
+        "Contents/Resources/bin/agy",
+        "Contents/Resources/bin/agy.exe",
+    ];
+
+    for base in &candidates {
+        for rel in &relative_paths {
+            let p = base.join(rel);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+    }
+
     None
 }
 
 pub fn find_manager_binary() -> Option<PathBuf> {
-    let cands = [
-        PathBuf::from("/Applications/Antigravity.app/Contents/Resources/bin/language_server"),
-        home_dir().join("Applications/Antigravity.app/Contents/Resources/bin/language_server"),
-        PathBuf::from("/opt/Antigravity/resources/bin/language_server"),
-    ];
-
-    for c in &cands {
-        if c.exists() {
-            return Some(c.clone());
+    for var in &["AGX_MANAGER_PATH", "AGX_LANGUAGE_SERVER_PATH"] {
+        if let Ok(v) = std::env::var(var) {
+            let p = PathBuf::from(v);
+            if p.is_file() {
+                return Some(p);
+            }
         }
     }
+
+    if let Some(p) = which_binary(&["language_server.exe", "language_server"]) {
+        return Some(p);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(p) = find_running_process_path("language_server") {
+            return Some(p);
+        }
+        if let Some(antigravity_exe) = find_running_process_path("Antigravity") {
+            if let Some(parent) = antigravity_exe.parent() {
+                let check_sub = [
+                    parent.join("resources/bin/language_server.exe"),
+                    parent.join("resources/bin/language_server"),
+                    parent.join("bin/language_server.exe"),
+                    parent.join("bin/language_server"),
+                    parent.join("language_server.exe"),
+                ];
+                for c in &check_sub {
+                    if c.is_file() {
+                        return Some(c.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    let candidates = get_candidate_app_dirs();
+    let relative_paths = [
+        "resources/bin/language_server.exe",
+        "resources/bin/language_server",
+        "resources/app/bin/language_server.exe",
+        "resources/app/bin/language_server",
+        "bin/language_server.exe",
+        "bin/language_server",
+        "language_server.exe",
+        "language_server",
+        "Contents/Resources/bin/language_server",
+        "Contents/Resources/bin/language_server.exe",
+    ];
+
+    for base in &candidates {
+        for rel in &relative_paths {
+            let p = base.join(rel);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+
+        if base.is_dir() {
+            if let Ok(entries) = fs::read_dir(base) {
+                for entry in entries.flatten() {
+                    let ep = entry.path();
+                    if ep.is_dir() {
+                        let name = ep.file_name().unwrap_or_default().to_string_lossy();
+                        if name.starts_with("app-") || name == "resources" || name == "bin" {
+                            for rel in &relative_paths {
+                                let p = ep.join(rel);
+                                if p.is_file() {
+                                    return Some(p);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(local_appdata) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        for search_root in &[local_appdata.clone(), local_appdata.join("Programs")] {
+            if search_root.is_dir() {
+                if let Ok(entries) = fs::read_dir(search_root) {
+                    for entry in entries.flatten() {
+                        let ep = entry.path();
+                        if ep.is_dir() {
+                            let name_lower = ep.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+                            if name_lower.contains("antigravity") {
+                                for rel in &relative_paths {
+                                    let p = ep.join(rel);
+                                    if p.is_file() {
+                                        return Some(p);
+                                    }
+                                }
+                                if let Ok(sub_entries) = fs::read_dir(&ep) {
+                                    for sub_entry in sub_entries.flatten() {
+                                        let sep = sub_entry.path();
+                                        if sep.is_dir() {
+                                            for rel in &relative_paths {
+                                                let p = sep.join(rel);
+                                                if p.is_file() {
+                                                    return Some(p);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     None
 }
 
 pub fn find_ide_main_js() -> Option<PathBuf> {
-    let cands = [
-        PathBuf::from("/Applications/Antigravity IDE.app/Contents/Resources/app/out/main.js"),
-        home_dir().join("Applications/Antigravity IDE.app/Contents/Resources/app/out/main.js"),
-        PathBuf::from("/opt/antigravity-ide/resources/app/out/main.js"),
-    ];
-
-    for c in &cands {
-        if c.exists() {
-            return Some(c.clone());
+    for var in &["AGX_IDE_PATH", "AGX_MAIN_JS_PATH"] {
+        if let Ok(v) = std::env::var(var) {
+            let p = PathBuf::from(v);
+            if p.is_file() {
+                return Some(p);
+            }
         }
     }
+
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(antigravity_exe) = find_running_process_path("Antigravity") {
+            if let Some(parent) = antigravity_exe.parent() {
+                let check_sub = [
+                    parent.join("resources/app/out/main.js"),
+                    parent.join("resources/app/main.js"),
+                    parent.join("app/out/main.js"),
+                ];
+                for c in &check_sub {
+                    if c.is_file() {
+                        return Some(c.clone());
+                    }
+                }
+            }
+        }
+    }
+
+    let candidates = get_candidate_app_dirs();
+    let relative_paths = [
+        "resources/app/out/main.js",
+        "resources/app/main.js",
+        "resources/app.asar.unpacked/out/main.js",
+        "resources/app.asar.unpacked/main.js",
+        "app/out/main.js",
+        "app/main.js",
+        "Contents/Resources/app/out/main.js",
+        "Contents/Resources/app/main.js",
+    ];
+
+    for base in &candidates {
+        for rel in &relative_paths {
+            let p = base.join(rel);
+            if p.is_file() {
+                return Some(p);
+            }
+        }
+
+        if base.is_dir() {
+            if let Ok(entries) = fs::read_dir(base) {
+                for entry in entries.flatten() {
+                    let ep = entry.path();
+                    if ep.is_dir() {
+                        let name = ep.file_name().unwrap_or_default().to_string_lossy();
+                        if name.starts_with("app-") || name == "resources" {
+                            for rel in &relative_paths {
+                                let p = ep.join(rel);
+                                if p.is_file() {
+                                    return Some(p);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    if let Some(local_appdata) = std::env::var_os("LOCALAPPDATA").map(PathBuf::from) {
+        for search_root in &[local_appdata.clone(), local_appdata.join("Programs")] {
+            if search_root.is_dir() {
+                if let Ok(entries) = fs::read_dir(search_root) {
+                    for entry in entries.flatten() {
+                        let ep = entry.path();
+                        if ep.is_dir() {
+                            let name_lower = ep.file_name().unwrap_or_default().to_string_lossy().to_lowercase();
+                            if name_lower.contains("antigravity") {
+                                for rel in &relative_paths {
+                                    let p = ep.join(rel);
+                                    if p.is_file() {
+                                        return Some(p);
+                                    }
+                                }
+                                if let Ok(sub_entries) = fs::read_dir(&ep) {
+                                    for sub_entry in sub_entries.flatten() {
+                                        let sep = sub_entry.path();
+                                        if sep.is_dir() {
+                                            for rel in &relative_paths {
+                                                let p = sep.join(rel);
+                                                if p.is_file() {
+                                                    return Some(p);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     None
 }
 
@@ -220,18 +566,33 @@ pub fn check_ide_gate(path: &Path) -> GateState {
     }
 }
 
-pub fn patch_target(name: &str) -> Result<String, String> {
+pub fn patch_target_with_path(name: &str, custom_path: Option<&Path>) -> Result<String, String> {
     match name {
         "cli" => {
-            let path = find_cli_binary().ok_or_else(|| "CLI binary (agy) not found".to_string())?;
+            let path = match custom_path {
+                Some(p) => p.to_path_buf(),
+                None => find_cli_binary().ok_or_else(|| {
+                    "CLI binary (agy) not found. Set AGX_CLI_PATH or use --path <path>".to_string()
+                })?,
+            };
             patch_cli(&path)
         }
         "manager" => {
-            let path = find_manager_binary().ok_or_else(|| "Manager binary (language_server) not found".to_string())?;
+            let path = match custom_path {
+                Some(p) => p.to_path_buf(),
+                None => find_manager_binary().ok_or_else(|| {
+                    "Manager binary (language_server) not found. Close Antigravity and check path, or set AGX_MANAGER_PATH / use --path <path>".to_string()
+                })?,
+            };
             patch_manager(&path)
         }
         "ide" => {
-            let path = find_ide_main_js().ok_or_else(|| "IDE main.js not found".to_string())?;
+            let path = match custom_path {
+                Some(p) => p.to_path_buf(),
+                None => find_ide_main_js().ok_or_else(|| {
+                    "IDE main.js not found. Set AGX_IDE_PATH or use --path <path>".to_string()
+                })?,
+            };
             patch_ide(&path)
         }
         "all" => {
@@ -246,8 +607,12 @@ pub fn patch_target(name: &str) -> Result<String, String> {
             if let Some(p) = find_ide_main_js() {
                 match patch_ide(&p) { Ok(m) => results.push(m), Err(e) => errors.push(e) }
             }
-            if errors.is_empty() {
+            if results.is_empty() && errors.is_empty() {
+                Err("No components (CLI, Manager, IDE) found to patch. Close Antigravity and set AGX_MANAGER_PATH or use --path.".to_string())
+            } else if errors.is_empty() {
                 Ok(results.join(" · "))
+            } else if !results.is_empty() {
+                Ok(format!("{} (Skipped/Errors: {})", results.join(" · "), errors.join("; ")))
             } else {
                 Err(errors.join(" | "))
             }
@@ -256,18 +621,31 @@ pub fn patch_target(name: &str) -> Result<String, String> {
     }
 }
 
-pub fn restore_target(name: &str) -> Result<String, String> {
+pub fn patch_target(name: &str) -> Result<String, String> {
+    patch_target_with_path(name, None)
+}
+
+pub fn restore_target_with_path(name: &str, custom_path: Option<&Path>) -> Result<String, String> {
     match name {
         "cli" => {
-            let path = find_cli_binary().ok_or_else(|| "CLI binary not found".to_string())?;
+            let path = match custom_path {
+                Some(p) => p.to_path_buf(),
+                None => find_cli_binary().ok_or_else(|| "CLI binary not found".to_string())?,
+            };
             restore_file(&path)
         }
         "manager" => {
-            let path = find_manager_binary().ok_or_else(|| "Manager binary not found".to_string())?;
+            let path = match custom_path {
+                Some(p) => p.to_path_buf(),
+                None => find_manager_binary().ok_or_else(|| "Manager binary not found".to_string())?,
+            };
             restore_file(&path)
         }
         "ide" => {
-            let path = find_ide_main_js().ok_or_else(|| "IDE main.js not found".to_string())?;
+            let path = match custom_path {
+                Some(p) => p.to_path_buf(),
+                None => find_ide_main_js().ok_or_else(|| "IDE main.js not found".to_string())?,
+            };
             restore_file(&path)
         }
         "all" => {
@@ -282,7 +660,9 @@ pub fn restore_target(name: &str) -> Result<String, String> {
             if let Some(p) = find_ide_main_js() {
                 match restore_file(&p) { Ok(m) => results.push(m), Err(e) => errors.push(e) }
             }
-            if errors.is_empty() {
+            if results.is_empty() && errors.is_empty() {
+                Err("No backups (.agybak) found to restore".to_string())
+            } else if errors.is_empty() {
                 Ok(results.join(" · "))
             } else {
                 Err(errors.join(" | "))
@@ -290,6 +670,10 @@ pub fn restore_target(name: &str) -> Result<String, String> {
         }
         _ => Err(format!("Unknown target: '{}'", name)),
     }
+}
+
+pub fn restore_target(name: &str) -> Result<String, String> {
+    restore_target_with_path(name, None)
 }
 
 fn backup_path_for(path: &Path) -> PathBuf {
@@ -304,12 +688,48 @@ fn make_backup(path: &Path) -> Result<PathBuf, String> {
     Ok(bak)
 }
 
+fn safe_write_file(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    if let Ok(metadata) = fs::metadata(path) {
+        let mut perms = metadata.permissions();
+        #[allow(clippy::permissions_set_readonly_false)]
+        if perms.readonly() {
+            perms.set_readonly(false);
+            let _ = fs::set_permissions(path, perms);
+        }
+    }
+
+    match fs::write(path, bytes) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            #[cfg(target_os = "windows")]
+            {
+                let temp_bak = path.with_extension(format!("agytmp_{}", std::process::id()));
+                if fs::rename(path, &temp_bak).is_ok() {
+                    let write_res = fs::write(path, bytes);
+                    if write_res.is_ok() {
+                        let _ = fs::remove_file(&temp_bak);
+                        return Ok(());
+                    } else {
+                        let _ = fs::rename(&temp_bak, path);
+                    }
+                }
+            }
+            Err(format!(
+                "Failed to write file {}: {}. Close Antigravity and any background language_server processes, then retry.",
+                path.display(),
+                e
+            ))
+        }
+    }
+}
+
 fn restore_file(path: &Path) -> Result<String, String> {
     let bak = backup_path_for(path);
     if !bak.exists() {
         return Err(format!("No backup file found at {}", bak.display()));
     }
-    fs::copy(&bak, path).map_err(|e| format!("Failed to restore from backup: {}", e))?;
+    let bytes = fs::read(&bak).map_err(|e| format!("Failed to read backup: {}", e))?;
+    safe_write_file(path, &bytes)?;
     re_codesign_if_mac(path);
     Ok(format!("Restored {}", path.file_name().unwrap_or_default().to_string_lossy()))
 }
@@ -350,7 +770,7 @@ pub fn patch_cli(path: &Path) -> Result<String, String> {
         return Err("Failed to resolve unique patch location in CLI".to_string());
     }
 
-    fs::write(path, &bytes).map_err(|e| format!("Failed to write patched CLI: {}", e))?;
+    safe_write_file(path, &bytes)?;
     re_codesign_if_mac(path);
     Ok("CLI patched (eligibility check bypassed)".to_string())
 }
@@ -378,7 +798,7 @@ pub fn patch_manager(path: &Path) -> Result<String, String> {
         applied = true;
     } else {
         let x64_unpatched = Regex::new(
-            r"(?-u)\x80\x78\x08\x00\x74.\x48\x8b\x54\x24\x70\x48\x89\x50\x60"
+            r"(?-u)\x80\x78\x08\x00\x74.\x48\x8b\x54\x24.\x48\x89\x50\x60"
         ).unwrap();
         if let Some(m) = x64_unpatched.find(&bytes) {
             let off = m.start();
@@ -391,7 +811,7 @@ pub fn patch_manager(path: &Path) -> Result<String, String> {
         return Err("Failed to resolve unique patch location in Manager".to_string());
     }
 
-    fs::write(path, &bytes).map_err(|e| format!("Failed to write patched Manager: {}", e))?;
+    safe_write_file(path, &bytes)?;
     re_codesign_if_mac(path);
     Ok("Manager patched (hasValidAuth=true)".to_string())
 }
@@ -410,7 +830,28 @@ pub fn patch_ide(path: &Path) -> Result<String, String> {
     let ide_re = Regex::new(r"(resetIsTierGCPTos\(\),)this\.[A-Za-z_$0-9]+\.isGoogleInternal").unwrap();
 
     let patched = ide_re.replace(&bytes, &b"${1}true"[..]);
-    fs::write(path, &patched).map_err(|e| format!("Failed to write patched IDE: {}", e))?;
+    safe_write_file(path, &patched)?;
+
+    // Purge IDE JS caches invalidated by the patch
+    let home = home_dir();
+    let mut cache_dirs = Vec::new();
+    if let Some(appdata) = std::env::var_os("APPDATA").map(PathBuf::from) {
+        cache_dirs.push(appdata.join("Antigravity IDE/CachedData"));
+        cache_dirs.push(appdata.join("Antigravity IDE/Code Cache/js"));
+    }
+    cache_dirs.push(home.join("AppData/Roaming/Antigravity IDE/CachedData"));
+    cache_dirs.push(home.join("AppData/Roaming/Antigravity IDE/Code Cache/js"));
+    cache_dirs.push(home.join("Library/Application Support/Antigravity IDE/CachedData"));
+    cache_dirs.push(home.join("Library/Application Support/Antigravity IDE/Code Cache/js"));
+    cache_dirs.push(home.join(".config/Antigravity IDE/CachedData"));
+    cache_dirs.push(home.join(".config/Antigravity IDE/Code Cache/js"));
+
+    for c in cache_dirs {
+        if c.is_dir() {
+            let _ = fs::remove_dir_all(&c);
+        }
+    }
+
     Ok("IDE patched (isGoogleInternal=true)".to_string())
 }
 

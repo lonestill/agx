@@ -4,9 +4,7 @@ use colored::*;
 use chrono::Utc;
 
 fn home_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
+    crate::account::home_dir()
 }
 
 pub fn export_backup(out_path: Option<String>) -> Result<PathBuf, String> {

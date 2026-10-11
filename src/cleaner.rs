@@ -29,9 +29,7 @@ pub fn format_bytes(bytes: u64) -> String {
 }
 
 fn home_dir() -> PathBuf {
-    std::env::var_os("HOME")
-        .map(PathBuf::from)
-        .unwrap_or_else(|| PathBuf::from("."))
+    crate::account::home_dir()
 }
 
 /// Hardcoded safety check to guarantee we NEVER delete chats, code projects, or transcripts.

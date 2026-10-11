@@ -12,6 +12,7 @@ mod skills;
 
 use clap::{Parser, Subcommand};
 use colored::*;
+use std::path::PathBuf;
 use account::*;
 use quota::*;
 use patcher::*;
@@ -20,7 +21,7 @@ use system::*;
 #[derive(Parser)]
 #[command(name = "agx")]
 #[command(author = "Depraved")]
-#[command(version = "1.3.0")]
+#[command(version = "1.3.2")]
 #[command(
     about = "Universal high-performance Antigravity multitool (Accounts, Quotas, Cleaner, Vault, Binary Modding, Stats, Doctor, Skills, TUI)",
     long_about = "agx launches an interactive TUI dashboard by default when run without arguments.\nYou can also run dedicated subcommands for scriptable CLI execution.\n\nGitHub Repository: https://github.com/lonestill/agx"
@@ -182,6 +183,10 @@ enum PatchCommands {
         /// Target name
         #[arg(default_value = "all")]
         target: String,
+
+        /// Explicit path to target file
+        #[arg(long, short)]
+        path: Option<PathBuf>,
     },
 
     /// Restore pristine original binary from backup
@@ -189,6 +194,10 @@ enum PatchCommands {
         /// Target name
         #[arg(default_value = "all")]
         target: String,
+
+        /// Explicit path to target file
+        #[arg(long, short)]
+        path: Option<PathBuf>,
     },
 }
 
@@ -482,8 +491,8 @@ fn handle_patch(cmd: PatchCommands) {
             }
             println!();
         }
-        PatchCommands::Apply { target } => {
-            match patch_target(&target) {
+        PatchCommands::Apply { target, path } => {
+            match patch_target_with_path(&target, path.as_deref()) {
                 Ok(msg) => println!("{} {}", "[ok]".green().bold(), msg),
                 Err(e) => {
                     eprintln!("{} Patch failed: {}", "[!!]".red().bold(), e);
@@ -491,8 +500,8 @@ fn handle_patch(cmd: PatchCommands) {
                 }
             }
         }
-        PatchCommands::Restore { target } => {
-            match restore_target(&target) {
+        PatchCommands::Restore { target, path } => {
+            match restore_target_with_path(&target, path.as_deref()) {
                 Ok(msg) => println!("{} {}", "[ok]".green().bold(), msg),
                 Err(e) => {
                     eprintln!("{} Restore failed: {}", "[!!]".red().bold(), e);
