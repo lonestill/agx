@@ -116,7 +116,7 @@ jobs:
           7z a -tzip "../artifacts/agx-${VERSION}-windows-x86_64.zip" agx.exe README.md
           
           cd ../artifacts
-          shasum -a 256 *.zip > checksums-windows.txt
+          sha256sum *.zip > checksums-windows.txt
 
       - name: Upload Windows Artifacts
         uses: actions/upload-artifact@v4
