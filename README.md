@@ -1,5 +1,13 @@
 # agx
 
+[![Latest Release](https://img.shields.io/github/v/release/lonestill/agx?style=flat-square&color=blue)](https://github.com/lonestill/agx/releases/latest)
+[![CI Release](https://img.shields.io/github/actions/workflow/status/lonestill/agx/release.yml?style=flat-square&label=CI)](https://github.com/lonestill/agx/actions)
+[![License](https://img.shields.io/badge/license-MIT%20%2F%20Apache--2.0-blue?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-green?style=flat-square)](https://github.com/lonestill/agx/releases/latest)
+[![Rust](https://img.shields.io/badge/rust-stable-orange?style=flat-square&logo=rust)](https://www.rust-lang.org)
+
+**Universal high-performance multitool for Google Antigravity & Jetski** — multi-account switcher, quota auto-rotator, binary gate patcher, token analytics, and interactive TUI.
+
 [English](#english) • [Русский](#русский) • [עברית](#עברית)
 
 ---
@@ -9,6 +17,27 @@
 A native, zero-bullshit multitool for Google Antigravity & Jetski. Written in Rust.
 
 Launches a 7-tab interactive TUI dashboard by default, with dedicated CLI subcommands for automation and scripting.
+
+### Installation
+
+Download pre-built native binaries from [GitHub Releases](https://github.com/lonestill/agx/releases/latest):
+
+| OS / Architecture | Package |
+|---|---|
+| **macOS Universal** (M1–M4 & Intel) | `agx-v*-macos-universal.tar.gz` |
+| **macOS Apple Silicon** (arm64) | `agx-v*-macos-arm64.tar.gz` |
+| **macOS Intel** (x86_64) | `agx-v*-macos-x86_64.tar.gz` |
+| **Linux** (x86_64) | `agx-v*-linux-x86_64.tar.gz` |
+| **Windows** (x86_64 MSVC) | `agx-v*-windows-x86_64.zip` |
+
+Or compile from source:
+
+```bash
+git clone https://github.com/lonestill/agx.git
+cd agx
+cargo build --release
+# Binary placed at target/release/agx
+```
 
 ### What it does
 
@@ -99,6 +128,18 @@ agx info                        # Environment & versions
 
 По умолчанию запускает 7-вкладочный интерактивный TUI-дашборд. Любая команда также доступна через CLI для скриптов и автоматизации.
 
+### Установка
+
+Готовые бинарники для всех платформ лежат в [GitHub Releases](https://github.com/lonestill/agx/releases/latest) (macOS Universal/ARM/Intel, Linux x86_64, Windows x64).
+
+Либо сборка из исходников:
+
+```bash
+git clone https://github.com/lonestill/agx.git
+cd agx
+cargo build --release
+```
+
 ### Основные возможности
 
 1. **Мультиаккаунты и авторотация квот**:
@@ -143,6 +184,18 @@ agx info                        # Environment & versions
 כלי עבודה מקורי, מהיר ומדויק עבור Google Antigravity ו-Jetski, כתוב ב-Rust. ללא שכבות מיותרות או ממשק מסורבל.
 
 בהרצה רגילה מפעיל ממשק TUI אינטראקטיבי עם 7 לשוניות. כל היכולות זמינות גם כפקודות CLI לאוטומציה וסקריפטים.
+
+### התקנה
+
+קבצים בינאריים מוכנים להורדה זמינים ב-[GitHub Releases](https://github.com/lonestill/agx/releases/latest) (עבור macOS, Linux ו-Windows).
+
+או הידור ישיר מקוד המקור:
+
+```bash
+git clone https://github.com/lonestill/agx.git
+cd agx
+cargo build --release
+```
 
 ### יכולות מרכזיות
 
