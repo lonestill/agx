@@ -59,7 +59,6 @@ cargo build --release
    - Directly inspects Antigravity conversation SQLite databases (`~/.gemini/antigravity/conversations/*.db`).
    - Decodes protobuf metadata at ~25,000 generations/second.
    - Calculates prompt cache hit rates and estimated API cost per model.
-   - *Note: `agx stats` is currently not supported on Windows (macOS & Linux only).*
 3. **Surgical Storage Cleaner (`agx clean`)**:
    - Reclaims ~1 GB of disposable Chromium V8 caches, GPU shaders, and background task process logs.
    - **Guaranteed safe**: strict hardcoded blacklist permanently blocks chats, transcripts, projects (`scratch/`), and tokens.
@@ -170,7 +169,6 @@ cargo build --release
    - Читает базы данных переписок Antigravity (`~/.gemini/antigravity/conversations/*.db`).
    - Парсит varint/protobuf метаданные со скоростью ~25 000 генераций/сек.
    - Считает процент попадания в промпт-кэш и расчётную стоимость по моделям.
-   - *Примечание: на данный момент функция `agx stats` не поддерживается на Windows (только macOS и Linux).*
 3. **Безопасная очистка кэша (`agx clean`)**:
    - Находит около 1 GB мусора: кэш Chromium V8, шейдеры GPU, логи stdout/stderr фоновых задач.
    - **Гарантия безопасности**: жесткий блэклист в коде навсегда блокирует доступ к базам чатов, транскриптам диалогов, папкам проектов (`scratch/`) и токенам.
@@ -228,7 +226,6 @@ cargo build --release
    - קורא ישירות את מסדי הנתונים של השיחות ב-SQLite (`~/.gemini/antigravity/conversations/*.db`).
    - מפענח נתוני Protobuf במהירות של כ-25,000 בקשות בשנייה.
    - מחשב יעילות מטמון (Prompt Caching) ועלות משוערת לפי דגם.
-   - *הערה: פקודת `agx stats` אינה נתמכת כרגע ב-Windows (זמינה ב-macOS ו-Linux בלבד).*
 3. **ניקוי מטמון בטוח ומדויק (`agx clean`)**:
    - מפנה כ-1 GB של קבצי מטמון (Chromium V8, שיידרים של GPU, ולוגים של משימות רקע).
    - **הגנה מוחלטת**: מנגנון נעילה קשיח מונע מחיקה של היסטוריית שיחות, פרויקטים (`scratch/`), קבצי משתמש ומפתחות.

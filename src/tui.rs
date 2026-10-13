@@ -1161,6 +1161,10 @@ fn render_system_tab(f: &mut Frame, area: Rect, state: &AppState) {
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(Color::DarkGray));
 
+    let toolkit_path = std::env::current_exe()
+        .map(|p| p.display().to_string())
+        .unwrap_or_else(|_| "agx".to_string());
+
     let lines = vec![
         Line::from(vec![
             Span::styled("  Installed Binaries & Applications", Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
@@ -1196,7 +1200,7 @@ fn render_system_tab(f: &mut Frame, area: Rect, state: &AppState) {
         ]),
         Line::from(vec![
             Span::styled("    Toolkit Path:   ", Style::default().fg(Color::DarkGray)),
-            Span::styled("~/.local/bin/agx  (/Users/a123/.gemini/antigravity/scratch/agx)", Style::default().fg(Color::White)),
+            Span::styled(toolkit_path, Style::default().fg(Color::White)),
         ]),
         Line::from(""),
         Line::from(vec![

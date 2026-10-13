@@ -14,8 +14,7 @@ pub struct SkillInfo {
 }
 
 fn skills_dir() -> PathBuf {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/a123".to_string());
-    PathBuf::from(home).join(".gemini/config/skills")
+    crate::account::gemini_dir().join("config/skills")
 }
 
 pub fn scan_skills() -> Vec<SkillInfo> {

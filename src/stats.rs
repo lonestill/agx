@@ -1,8 +1,9 @@
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
 use colored::*;
 use rusqlite::{Connection, OpenFlags};
+
+use std::time::Duration;
 
 #[derive(Debug, Default, Clone)]
 pub struct ModelUsage {
@@ -148,8 +149,7 @@ fn extract_bytes<'a>(fields: &'a HashMap<u32, Vec<ProtoValue<'a>>>, field_num: u
 }
 
 pub fn collect_antigravity_tokens() -> (usize, u64, HashMap<String, ModelUsage>) {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/Users/a123".to_string());
-    let conv_dir = PathBuf::from(home).join(".gemini/antigravity/conversations");
+    let conv_dir = crate::account::gemini_dir().join("antigravity/conversations");
 
     let mut sessions_count = 0;
     let mut requests_count = 0;
@@ -164,9 +164,18 @@ pub fn collect_antigravity_tokens() -> (usize, u64, HashMap<String, ModelUsage>)
         let path = entry.path();
         if path.extension().and_then(|s| s.to_str()) == Some("db") {
             sessions_count += 1;
-            // Open read-only
-            let conn = match Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY) {
-                Ok(c) => c,
+            // Open read-only with busy timeout and URI fallback for active WAL locks on Windows
+            let conn = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_ONLY)
+                .or_else(|_| {
+                    let uri = format!("file:{}?mode=ro&immutable=1", path.to_string_lossy().replace('\\', "/"));
+                    Connection::open_with_flags(uri, OpenFlags::SQLITE_OPEN_READ_ONLY | OpenFlags::SQLITE_OPEN_URI)
+                });
+
+            let conn = match conn {
+                Ok(c) => {
+                    let _ = c.busy_timeout(Duration::from_millis(1500));
+                    c
+                }
                 Err(_) => continue,
             };
 
