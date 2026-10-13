@@ -22,6 +22,8 @@ A native, zero-bullshit multitool for Google Antigravity & Jetski. Written in Ru
 
 Launches a 7-tab interactive TUI dashboard by default, with dedicated CLI subcommands for automation and scripting.
 
+**100% Cross-Platform**: Full native feature parity across **Windows**, **macOS**, and **Linux** — every CLI command, TUI tab, background path resolution, and credential discovery operates identically on all operating systems.
+
 ### Installation
 
 **One-line automatic install (macOS & Linux):**
@@ -29,6 +31,10 @@ Launches a 7-tab interactive TUI dashboard by default, with dedicated CLI subcom
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lonestill/agx/master/install.sh | bash
 ```
+
+**Windows:**
+
+Download `agx-v*-windows-x86_64.zip` from [GitHub Releases](https://github.com/lonestill/agx/releases/latest) and place `agx.exe` into any folder in your `PATH` (e.g. `%USERPROFILE%\.local\bin`).
 
 Or download pre-built native binaries from [GitHub Releases](https://github.com/lonestill/agx/releases/latest):
 
@@ -46,26 +52,30 @@ Or compile from source:
 git clone https://github.com/lonestill/agx.git
 cd agx
 cargo build --release
-# Binary placed at target/release/agx
+# Binary placed at target/release/agx (or target/release/agx.exe on Windows)
 ```
 
 ### What it does
 
+> **Full Cross-Platform Parity**: Every feature below works seamlessly across **Windows**, **macOS**, and **Linux** with automated native path discovery (`%USERPROFILE%` / `$HOME`), non-blocking SQLite WAL access, and multi-platform credential extraction.
+
 1. **Multi-Account & Quota Auto-Rotation**:
-   - Stores multiple Google OAuth profiles (`~/.gemini/accounts/`).
+   - Stores multiple Google OAuth profiles (`~/.gemini/accounts/` or `%USERPROFILE%\.gemini\accounts\`).
+   - Automatically auto-discovers credentials across platforms: active token files, IDE state DB (`state.vscdb`), and Windows Credential Manager.
    - Live 5-hour rolling and weekly quota countdowns.
    - `agx account best` automatically rotates to the account with the highest available quota.
 2. **Token & Cost Analytics (`agx stats`)**:
-   - Directly inspects Antigravity conversation SQLite databases (`~/.gemini/antigravity/conversations/*.db`).
+   - Directly inspects Antigravity conversation SQLite databases on Windows, macOS, and Linux.
    - Decodes protobuf metadata at ~25,000 generations/second.
+   - Non-blocking SQLite reader with immutable URI mode (`mode=ro&immutable=1`) and busy timeouts — works concurrently while the IDE is running.
    - Calculates prompt cache hit rates and estimated API cost per model.
 3. **Surgical Storage Cleaner (`agx clean`)**:
-   - Reclaims ~1 GB of disposable Chromium V8 caches, GPU shaders, and background task process logs.
+   - Reclaims ~1 GB of disposable Chromium V8 caches, GPU shaders, and background task process logs across all systems.
    - **Guaranteed safe**: strict hardcoded blacklist permanently blocks chats, transcripts, projects (`scratch/`), and tokens.
    - Interactive checkbox selection with explicit confirmation (`[y/N]`).
 4. **Binary Gate Patcher (`agx patch`)**:
    - Inspects and patches authentication & eligibility gates in `agy` CLI, `language_server`, and IDE `main.js`.
-   - Automatic `.agybak` backups and macOS ad-hoc code-signing (`codesign -f -s -`).
+   - Automatic `.agybak` backups and ad-hoc code-signing (`codesign -f -s -` on macOS).
 5. **System Health Doctor (`agx doctor`)**:
    - Pings Google OAuth2 and CloudCode endpoints with live RTT measurement.
    - Audits token expiry, helper processes, and code signatures.
@@ -147,9 +157,20 @@ agx info                        # Environment & versions
 
 По умолчанию запускает 7-вкладочный интерактивный TUI-дашборд. Любая команда также доступна через CLI для скриптов и автоматизации.
 
+**100% Кроссплатформенность**: Полный паритет возможностей на **Windows**, **macOS** и **Linux** — все функции, команды, автоматический поиск путей и TUI работают одинаково надёжно на любой ОС без исключений.
+
 ### Установка
 
 Готовые бинарники для всех платформ лежат в [GitHub Releases](https://github.com/lonestill/agx/releases/latest) (macOS Universal/ARM/Intel, Linux x86_64, Windows x64).
+
+**Быстрая установка в одну строку (macOS и Linux):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lonestill/agx/master/install.sh | bash
+```
+
+**Windows:**
+Скачайте архив `agx-v*-windows-x86_64.zip` со страницы [GitHub Releases](https://github.com/lonestill/agx/releases/latest) и поместите `agx.exe` в любую папку из переменной `PATH` (например, `%USERPROFILE%\.local\bin`).
 
 Либо сборка из исходников:
 
@@ -161,24 +182,28 @@ cargo build --release
 
 ### Основные возможности
 
+> **Все возможности работают на всех системах**: Никаких ограничений и вырезанных команд — всё от аналитики токенов до патчера бинарников и TUI работает на **Windows**, **macOS** и **Linux**.
+
 1. **Мультиаккаунты и авторотация квот**:
-   - Управление профилями Google OAuth в `~/.gemini/accounts/`.
+   - Управление профилями Google OAuth в `~/.gemini/accounts/` (`%USERPROFILE%\.gemini\accounts\`).
+   - Автоматический поиск токенов: из активных файлов, баз IDE (`state.vscdb`) и Windows Credential Manager.
    - Мониторинг 5-часовых и недельных скользящих лимитов с таймером сброса.
    - `agx account best` моментально находит аккаунт с максимальной свободной квотой и переключается на него.
 2. **Аналитика токенов и затрат (`agx stats`)**:
-   - Читает базы данных переписок Antigravity (`~/.gemini/antigravity/conversations/*.db`).
+   - Читает базы данных переписок Antigravity на всех поддерживаемых ОС.
    - Парсит varint/protobuf метаданные со скоростью ~25 000 генераций/сек.
+   - Неблокирующее чтение баз SQLite через URI `mode=ro&immutable=1` с `busy_timeout` — работает даже при открытом IDE на Windows без конфликтов блокировок.
    - Считает процент попадания в промпт-кэш и расчётную стоимость по моделям.
 3. **Безопасная очистка кэша (`agx clean`)**:
-   - Находит около 1 GB мусора: кэш Chromium V8, шейдеры GPU, логи stdout/stderr фоновых задач.
+   - Находит около 1 GB мусора на любой ОС: кэш Chromium V8, шейдеры GPU, логи stdout/stderr фоновых задач.
    - **Гарантия безопасности**: жесткий блэклист в коде навсегда блокирует доступ к базам чатов, транскриптам диалогов, папкам проектов (`scratch/`) и токенам.
    - Выбор категорий чекбоксами и строгое подтверждение перед удалением (`[y/N]`).
 4. **Патчер бинарников (`agx patch`)**:
    - Находит и снимает проверки доступности и авторизации в `agy`, `language_server` и `main.js`.
-   - Автоматически создает бэкапы `.agybak` и переподписывает код через `codesign -f -s -`.
+   - Автоматически создает бэкапы `.agybak` и переподписывает код (ad-hoc через `codesign` на macOS).
 5. **Диагностика системы (`agx doctor`)**:
    - Замеряет пинг до Google OAuth и CloudCode API в миллисекундах.
-   - Проверяет срок действия токенов, запущенные процессы и целостность подписей.
+   - Проверяет срок действия токенов, запущенные процессы и целостность подписей на всех системах.
 6. **Менеджер скиллов (`agx skills`)**:
    - Просмотр, аудит структуры и создание новых скиллов агента в `~/.gemini/config/skills/`.
 7. **Изолированный запуск (`agx run`)**:
@@ -204,9 +229,20 @@ cargo build --release
 
 בהרצה רגילה מפעיל ממשק TUI אינטראקטיבי עם 7 לשוניות. כל היכולות זמינות גם כפקודות CLI לאוטומציה וסקריפטים.
 
+**תמיכה מלאה בכל הפלטפורמות (100% Cross-Platform)**: כל הפונקציות, פקודות ה-CLI, ניהול הנתיבים וממשק ה-TUI פועלים באופן שווה וזהה ב-**Windows**, **macOS** ו-**Linux** ללא החרגות.
+
 ### התקנה
 
 קבצים בינאריים מוכנים להורדה זמינים ב-[GitHub Releases](https://github.com/lonestill/agx/releases/latest) (עבור macOS, Linux ו-Windows).
+
+**התקנה מהירה בשורה אחת (macOS ו-Linux):**
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lonestill/agx/master/install.sh | bash
+```
+
+**Windows:**
+הורידו את קובץ ה-ZIP `agx-v*-windows-x86_64.zip` מ-[GitHub Releases](https://github.com/lonestill/agx/releases/latest) וחלצו את `agx.exe` לתיקייה הנמצאת ב-`PATH`.
 
 או הידור ישיר מקוד המקור:
 
@@ -218,21 +254,25 @@ cargo build --release
 
 ### יכולות מרכזיות
 
+> **כל היכולות זמינות בכל מערכות ההפעלה**: תמיכה מלאה ב-**Windows**, **macOS** ו-**Linux** עם התאמת נתיבים אוטומטית (`%USERPROFILE%` / `$HOME`), עקיפת נעילות SQLite WAL וזיהוי מפתחות בכל מערכת.
+
 1. **ניהול חשבונות ורוטציית מכסות אוטומטית**:
-   - שמירה ומעבר בין חשבונות Google OAuth (`~/.gemini/accounts/`).
+   - שמירה ומעבר בין חשבונות Google OAuth (`~/.gemini/accounts/` או `%USERPROFILE%\.gemini\accounts\`).
+   - זיהוי אוטומטי של טוקנים מקבצי סביבה, מסדי IDE (`state.vscdb`) ומנהל האישורים של Windows (Credential Manager).
    - מעקב בזמן אמת אחרי חלונות מכסה (5 שעות ושבועי) עם זמני איפוס.
    - הפקודה `agx account best` מאתרת את החשבון בעל המכסה הגבוהה ביותר ועוברת אליו אוטומטית.
 2. **ניתוח טוקנים ועלויות (`agx stats`)**:
-   - קורא ישירות את מסדי הנתונים של השיחות ב-SQLite (`~/.gemini/antigravity/conversations/*.db`).
+   - קורא ישירות את מסדי הנתונים של השיחות ב-SQLite בכל מערכות ההפעלה.
    - מפענח נתוני Protobuf במהירות של כ-25,000 בקשות בשנייה.
+   - קריאה שאינה חוסמת באמצעות URI `mode=ro&immutable=1` וזמני המתנה (busy_timeout) — מאפשר קריאה במקביל ל-IDE פעיל.
    - מחשב יעילות מטמון (Prompt Caching) ועלות משוערת לפי דגם.
 3. **ניקוי מטמון בטוח ומדויק (`agx clean`)**:
-   - מפנה כ-1 GB של קבצי מטמון (Chromium V8, שיידרים של GPU, ולוגים של משימות רקע).
+   - מפנה כ-1 GB של קבצי מטמון בכל הפלטפורמות (Chromium V8, שיידרים של GPU, ולוגים של משימות רקע).
    - **הגנה מוחלטת**: מנגנון נעילה קשיח מונע מחיקה של היסטוריית שיחות, פרויקטים (`scratch/`), קבצי משתמש ומפתחות.
    - בחירה אינטראקטיבית עם אישור מפורש לפני ביצוע (`[y/N]`).
 4. **עקיפת חסימות בקבצים בינאריים (`agx patch`)**:
    - בודק ומחיל טלאים עבור רכיבי `agy`, `language_server` ו-`main.js`.
-   - גיבוי אוטומטי (`.agybak`) וחתימה מחדש ב-macOS (`codesign`).
+   - גיבוי אוטומטי (`.agybak`) וחתימה מחדש (ad-hoc ב-macOS).
 5. **בדיקת תקינות מערכת (`agx doctor`)**:
    - בדיקת זמני תגובה (Latency במילישניות) מול שרתי Google OAuth ו-CloudCode.
    - בדיקת תוקף טוקנים, תהליכים פעילים ותקינות חתימות.
