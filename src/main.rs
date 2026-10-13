@@ -21,7 +21,7 @@ use system::*;
 #[derive(Parser)]
 #[command(name = "agx")]
 #[command(author = "Depraved")]
-#[command(version = "1.3.3")]
+#[command(version = "1.3.4")]
 #[command(
     about = "Universal high-performance Antigravity multitool (Accounts, Quotas, Cleaner, Vault, Binary Modding, Stats, Doctor, Skills, TUI)",
     long_about = "agx launches an interactive TUI dashboard by default when run without arguments.\nYou can also run dedicated subcommands for scriptable CLI execution.\n\nGitHub Repository: https://github.com/lonestill/agx"
