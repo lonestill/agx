@@ -20,7 +20,7 @@ use system::*;
 
 #[derive(Parser)]
 #[command(name = "agx")]
-#[command(author = "Depraved")]
+#[command(author = "lonestill")]
 #[command(version = "1.3.5")]
 #[command(
     about = "Universal high-performance Antigravity multitool (Accounts, Quotas, Cleaner, Vault, Binary Modding, Stats, Doctor, Skills, TUI)",
