@@ -151,62 +151,88 @@ impl AppState {
 
     fn spawn_quota_loader(rows_arc: Arc<Mutex<Vec<AccountRow>>>) {
         thread::spawn(move || {
-            let accounts_to_fetch: Vec<String> = {
+            let accounts_to_fetch: Vec<(usize, String)> = {
                 let lock = rows_arc.lock().unwrap();
-                lock.iter().map(|r| r.name.clone()).collect()
+                lock.iter().enumerate().map(|(idx, r)| (idx, r.name.clone())).collect()
             };
 
-            for name in accounts_to_fetch {
+            for (idx, name) in accounts_to_fetch {
                 let res = load_account(&name).and_then(|mut tok| fetch_quota_summary(&mut tok));
                 let mut lock = rows_arc.lock().unwrap();
-                if let Some(row) = lock.iter_mut().find(|r| r.name == name) {
-                    row.is_loading = false;
-                    match res {
-                        Ok(groups) => {
-                            for g in groups {
-                                let lname = g.name.to_lowercase();
-                                if lname.contains("gemini") {
-                                    if let Some(w) = g.five_hour {
-                                        let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
-                                        let reset = match w.reset_time {
-                                            Some(dt) => {
-                                                let diff = dt - chrono::Utc::now();
-                                                let s = diff.num_seconds();
-                                                if s <= 0 { "0m".to_string() } else { format!("{}h{:02}m", s / 3600, (s % 3600) / 60) }
-                                            }
-                                            None => "".to_string(),
-                                        };
-                                        row.gemini_5h = if reset.is_empty() { format!("{}%", pct) } else { format!("{}% ({})", pct, reset) };
-                                    }
-                                    if let Some(w) = g.weekly {
-                                        let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
-                                        row.gemini_wk = format!("{}%", pct);
-                                    }
-                                } else if lname.contains("claude") || lname.contains("gpt") {
-                                    if let Some(w) = g.five_hour {
-                                        let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
-                                        let reset = match w.reset_time {
-                                            Some(dt) => {
-                                                let diff = dt - chrono::Utc::now();
-                                                let s = diff.num_seconds();
-                                                if s <= 0 { "0m".to_string() } else { format!("{}h{:02}m", s / 3600, (s % 3600) / 60) }
-                                            }
-                                            None => "".to_string(),
-                                        };
-                                        row.claude_5h = if reset.is_empty() { format!("{}%", pct) } else { format!("{}% ({})", pct, reset) };
-                                    }
-                                    if let Some(w) = g.weekly {
-                                        let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
-                                        row.claude_wk = format!("{}%", pct);
-                                    }
+                let row = match lock.get_mut(idx) {
+                    Some(r) if r.name == name => r,
+                    _ => match lock.iter_mut().find(|r| r.name == name) {
+                        Some(r) => r,
+                        None => continue,
+                    },
+                };
+
+                row.is_loading = false;
+                match res {
+                    Ok(groups) => {
+                        let mut found_gemini = false;
+                        let mut found_claude = false;
+                        for g in groups {
+                            let lname = g.name.to_lowercase();
+                            if lname.contains("gemini") {
+                                found_gemini = true;
+                                if let Some(w) = g.five_hour {
+                                    let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
+                                    let reset = match w.reset_time {
+                                        Some(dt) => {
+                                            let diff = dt - chrono::Utc::now();
+                                            let s = diff.num_seconds();
+                                            if s <= 0 { "0m".to_string() } else { format!("{}h{:02}m", s / 3600, (s % 3600) / 60) }
+                                        }
+                                        None => "".to_string(),
+                                    };
+                                    row.gemini_5h = if reset.is_empty() { format!("{}%", pct) } else { format!("{}% ({})", pct, reset) };
+                                } else {
+                                    row.gemini_5h = "100%".to_string();
+                                }
+                                if let Some(w) = g.weekly {
+                                    let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
+                                    row.gemini_wk = format!("{}%", pct);
+                                } else {
+                                    row.gemini_wk = "100%".to_string();
+                                }
+                            } else if lname.contains("claude") || lname.contains("gpt") {
+                                found_claude = true;
+                                if let Some(w) = g.five_hour {
+                                    let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
+                                    let reset = match w.reset_time {
+                                        Some(dt) => {
+                                            let diff = dt - chrono::Utc::now();
+                                            let s = diff.num_seconds();
+                                            if s <= 0 { "0m".to_string() } else { format!("{}h{:02}m", s / 3600, (s % 3600) / 60) }
+                                        }
+                                        None => "".to_string(),
+                                    };
+                                    row.claude_5h = if reset.is_empty() { format!("{}%", pct) } else { format!("{}% ({})", pct, reset) };
+                                } else {
+                                    row.claude_5h = "100%".to_string();
+                                }
+                                if let Some(w) = g.weekly {
+                                    let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
+                                    row.claude_wk = format!("{}%", pct);
+                                } else {
+                                    row.claude_wk = "—".to_string();
                                 }
                             }
                         }
-                        Err(e) => {
-                            row.error = Some(e);
-                            row.gemini_5h = "err".to_string();
-                            row.claude_5h = "err".to_string();
+                        if !found_gemini {
+                            row.gemini_5h = "100%".to_string();
+                            row.gemini_wk = "100%".to_string();
                         }
+                        if !found_claude {
+                            row.claude_5h = "—".to_string();
+                            row.claude_wk = "—".to_string();
+                        }
+                    }
+                    Err(e) => {
+                        row.error = Some(e);
+                        row.gemini_5h = "err".to_string();
+                        row.claude_5h = "err".to_string();
                     }
                 }
             }
@@ -684,17 +710,33 @@ fn render_accounts_tab(f: &mut Frame, area: Rect, state: &AppState) {
                     Style::default().fg(Color::White)
                 };
 
-                let g5h_style = if r.gemini_5h.starts_with("0%") {
+                let g5h_style = if r.gemini_5h.starts_with("0%") || r.gemini_5h == "err" {
                     Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-                } else if r.gemini_5h.contains("loading") {
+                } else if r.gemini_5h.contains("loading") || r.gemini_5h == "—" {
                     Style::default().fg(Color::DarkGray)
                 } else {
                     Style::default().fg(Color::Green)
                 };
 
-                let c5h_style = if r.claude_5h.starts_with("0%") {
+                let gwk_style = if r.gemini_wk.starts_with("0%") || r.gemini_wk == "err" {
                     Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
-                } else if r.claude_5h.contains("loading") {
+                } else if r.gemini_wk == "—" {
+                    Style::default().fg(Color::DarkGray)
+                } else {
+                    Style::default().fg(Color::Green)
+                };
+
+                let c5h_style = if r.claude_5h.starts_with("0%") || r.claude_5h == "err" {
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                } else if r.claude_5h.contains("loading") || r.claude_5h == "—" {
+                    Style::default().fg(Color::DarkGray)
+                } else {
+                    Style::default().fg(Color::Green)
+                };
+
+                let cwk_style = if r.claude_wk.starts_with("0%") || r.claude_wk == "err" {
+                    Style::default().fg(Color::Red).add_modifier(Modifier::BOLD)
+                } else if r.claude_wk == "—" {
                     Style::default().fg(Color::DarkGray)
                 } else {
                     Style::default().fg(Color::Green)
@@ -705,9 +747,9 @@ fn render_accounts_tab(f: &mut Frame, area: Rect, state: &AppState) {
                     Cell::from(active_mark).style(Style::default().fg(Color::Green)),
                     Cell::from(r.name.clone()).style(name_style),
                     Cell::from(r.gemini_5h.clone()).style(g5h_style),
-                    Cell::from(r.gemini_wk.clone()),
+                    Cell::from(r.gemini_wk.clone()).style(gwk_style),
                     Cell::from(r.claude_5h.clone()).style(c5h_style),
-                    Cell::from(r.claude_wk.clone()),
+                    Cell::from(r.claude_wk.clone()).style(cwk_style),
                     Cell::from(r.token_exp.clone()).style(Style::default().fg(Color::DarkGray)),
                 ])
                 .style(row_style)

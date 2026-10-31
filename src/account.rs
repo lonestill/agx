@@ -363,14 +363,16 @@ pub fn list_accounts() -> Result<Vec<(String, StandaloneToken, bool)>, String> {
         if !has_active {
             let name = active_tok.email.clone().unwrap_or_else(|| "default".to_string());
             let path = dir.join(format!("{}.json", name));
-            if !path.exists() {
-                let mut tok_to_save = active_tok.clone();
-                tok_to_save.saved_at = Some(Utc::now().to_rfc3339());
-                if let Ok(c) = serde_json::to_string_pretty(&tok_to_save) {
-                    let _ = fs::write(&path, c);
-                }
+            let mut tok_to_save = active_tok.clone();
+            tok_to_save.saved_at = Some(Utc::now().to_rfc3339());
+            if let Ok(c) = serde_json::to_string_pretty(&tok_to_save) {
+                let _ = fs::write(&path, c);
             }
-            list.push((name, active_tok.clone(), true));
+            if let Some(pos) = list.iter().position(|(n, _, _)| n == &name) {
+                list[pos] = (name, active_tok.clone(), true);
+            } else {
+                list.push((name, active_tok.clone(), true));
+            }
         }
     }
 
@@ -392,16 +394,22 @@ pub fn load_account(name: &str) -> Result<StandaloneToken, String> {
     Err(format!("Account '{}' not found in {}", name, accounts_dir().display()))
 }
 
-pub fn save_account(name: &str) -> Result<(), String> {
-    let mut token = read_active_token()?;
-    token.saved_at = Some(Utc::now().to_rfc3339());
-    let path = accounts_dir().join(format!("{}.json", name));
+pub fn save_account_token(name: &str, token: &StandaloneToken) -> Result<(), String> {
     let dir = accounts_dir();
     if !dir.exists() {
         fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     }
-    let content = serde_json::to_string_pretty(&token).map_err(|e| e.to_string())?;
+    let path = dir.join(format!("{}.json", name));
+    let content = serde_json::to_string_pretty(token).map_err(|e| e.to_string())?;
     fs::write(&path, content).map_err(|e| format!("Failed to save account: {}", e))?;
+    Ok(())
+}
+
+pub fn save_account(name: &str) -> Result<(), String> {
+    let mut token = read_active_token()?;
+    token.saved_at = Some(Utc::now().to_rfc3339());
+    save_account_token(name, &token)?;
+    let path = accounts_dir().join(format!("{}.json", name));
     println!("{} Account saved as '{}' [{}]", "[ok]".green().bold(), name.cyan().bold(), path.display());
     Ok(())
 }
@@ -454,7 +462,7 @@ pub fn switch_best() -> Result<String, String> {
                 let mut s = 0.0;
                 for g in groups {
                     let lname = g.name.to_lowercase();
-                    if lname.contains("gemini") {
+                    if lname.contains("claude") || lname.contains("gpt") {
                         if let Some(w) = g.five_hour {
                             let f = w.fraction.unwrap_or(0.0);
                             if f <= 0.001 {
@@ -465,6 +473,18 @@ pub fn switch_best() -> Result<String, String> {
                         }
                         if let Some(w) = g.weekly {
                             s += w.fraction.unwrap_or(0.0) * 0.3;
+                        }
+                    } else if lname.contains("gemini") {
+                        if let Some(w) = g.five_hour {
+                            let f = w.fraction.unwrap_or(0.0);
+                            if f <= 0.001 {
+                                s = 0.0;
+                                break;
+                            }
+                            s += f * 0.35;
+                        }
+                        if let Some(w) = g.weekly {
+                            s += w.fraction.unwrap_or(0.0) * 0.15;
                         }
                     }
                 }

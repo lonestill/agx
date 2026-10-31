@@ -8,6 +8,10 @@ pub const QUOTA_URL: &str = "https://cloudcode-pa.googleapis.com/v1internal:retr
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Bucket {
+    #[serde(rename = "bucketId")]
+    pub bucket_id: Option<String>,
+    #[serde(rename = "displayName")]
+    pub display_name: Option<String>,
     pub window: Option<String>,
     #[serde(rename = "remainingFraction")]
     pub remaining_fraction: Option<f64>,
@@ -135,10 +139,16 @@ fn parse_quota_response(resp: reqwest::blocking::Response) -> Result<Vec<GroupSu
         let mut weekly = None;
 
         for bucket in group.buckets.unwrap_or_default() {
-            let win = match bucket.window.as_deref() {
-                Some(w) => w,
-                None => continue,
-            };
+            let win = bucket.window.as_deref().unwrap_or("").to_lowercase();
+            let bid = bucket.bucket_id.as_deref().unwrap_or("").to_lowercase();
+            let bdisp = bucket.display_name.as_deref().unwrap_or("").to_lowercase();
+
+            let is_5h = win == "5h" || bid.contains("5h") || bdisp.contains("five hour") || bdisp.contains("5-hour");
+            let is_weekly = win == "weekly" || bid.contains("weekly") || bdisp.contains("weekly");
+
+            if !is_5h && !is_weekly {
+                continue;
+            }
 
             let dt = bucket.reset_time.as_deref().and_then(|s| {
                 DateTime::parse_from_rfc3339(s).ok().map(|d| d.with_timezone(&Utc))
@@ -150,9 +160,9 @@ fn parse_quota_response(resp: reqwest::blocking::Response) -> Result<Vec<GroupSu
                 disabled: bucket.disabled.unwrap_or(false),
             };
 
-            if win == "5h" {
+            if is_5h {
                 five_hour = Some(summary);
-            } else if win == "weekly" {
+            } else if is_weekly {
                 weekly = Some(summary);
             }
         }
@@ -161,6 +171,24 @@ fn parse_quota_response(resp: reqwest::blocking::Response) -> Result<Vec<GroupSu
             name,
             five_hour,
             weekly,
+        });
+    }
+
+    // Google API currently only reports 3P models (Claude/GPT) when Gemini is unmetered.
+    // If Gemini is omitted, synthesize an unmetered entry so quota consumers don't hang or starve.
+    if !summaries.iter().any(|g| g.name.to_lowercase().contains("gemini")) {
+        summaries.push(GroupSummary {
+            name: "Gemini models".to_string(),
+            five_hour: Some(WindowSummary {
+                fraction: Some(1.0),
+                reset_time: None,
+                disabled: false,
+            }),
+            weekly: Some(WindowSummary {
+                fraction: Some(1.0),
+                reset_time: None,
+                disabled: false,
+            }),
         });
     }
 
@@ -192,7 +220,7 @@ pub fn render_window_metric(summary: Option<&WindowSummary>) -> (String, String)
             };
 
             let reset_str = match w.reset_time {
-                None => "not reported".dimmed().to_string(),
+                None => "unlimited".cyan().to_string(),
                 Some(dt) => {
                     let now = Utc::now();
                     let diff = dt - now;

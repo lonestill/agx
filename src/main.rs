@@ -360,7 +360,7 @@ fn handle_account(cmd: AccountCommands) {
                     };
                     match refresh_account_token(&mut token) {
                         Ok(_) => {
-                            let _ = save_account(&n);
+                            let _ = save_account_token(&n, &token);
                             println!("{} Refreshed token for account '{}'", "[ok]".green().bold(), n.cyan());
                             Ok(())
                         }
