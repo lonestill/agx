@@ -4,6 +4,7 @@ use colored::*;
 use chrono::{DateTime, Utc};
 use crate::account::{StandaloneToken, refresh_account_token};
 
+pub const USER_AGENT: &str = "antigravity/2.28.2";
 pub const QUOTA_URL: &str = "https://cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary";
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -83,7 +84,7 @@ pub fn fetch_quota_summary(token_data: &mut StandaloneToken) -> Result<Vec<Group
         .post(QUOTA_URL)
         .header("Authorization", format!("Bearer {}", access_token))
         .header("Content-Type", "application/json")
-        .header("User-Agent", "antigravity")
+        .header("User-Agent", USER_AGENT)
         .body("{}")
         .send();
 
@@ -100,7 +101,7 @@ pub fn fetch_quota_summary(token_data: &mut StandaloneToken) -> Result<Vec<Group
                 .post(QUOTA_URL)
                 .header("Authorization", format!("Bearer {}", new_access))
                 .header("Content-Type", "application/json")
-                .header("User-Agent", "antigravity")
+                .header("User-Agent", USER_AGENT)
                 .body("{}")
                 .send();
             match retry {
@@ -171,24 +172,6 @@ fn parse_quota_response(resp: reqwest::blocking::Response) -> Result<Vec<GroupSu
             name,
             five_hour,
             weekly,
-        });
-    }
-
-    // Google API currently only reports 3P models (Claude/GPT) when Gemini is unmetered.
-    // If Gemini is omitted, synthesize an unmetered entry so quota consumers don't hang or starve.
-    if !summaries.iter().any(|g| g.name.to_lowercase().contains("gemini")) {
-        summaries.push(GroupSummary {
-            name: "Gemini models".to_string(),
-            five_hour: Some(WindowSummary {
-                fraction: Some(1.0),
-                reset_time: None,
-                disabled: false,
-            }),
-            weekly: Some(WindowSummary {
-                fraction: Some(1.0),
-                reset_time: None,
-                disabled: false,
-            }),
         });
     }
 

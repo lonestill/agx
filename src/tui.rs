@@ -188,13 +188,13 @@ impl AppState {
                                     };
                                     row.gemini_5h = if reset.is_empty() { format!("{}%", pct) } else { format!("{}% ({})", pct, reset) };
                                 } else {
-                                    row.gemini_5h = "100%".to_string();
+                                    row.gemini_5h = "—".to_string();
                                 }
                                 if let Some(w) = g.weekly {
                                     let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
                                     row.gemini_wk = format!("{}%", pct);
                                 } else {
-                                    row.gemini_wk = "100%".to_string();
+                                    row.gemini_wk = "—".to_string();
                                 }
                             } else if lname.contains("claude") || lname.contains("gpt") {
                                 found_claude = true;
@@ -210,7 +210,7 @@ impl AppState {
                                     };
                                     row.claude_5h = if reset.is_empty() { format!("{}%", pct) } else { format!("{}% ({})", pct, reset) };
                                 } else {
-                                    row.claude_5h = "100%".to_string();
+                                    row.claude_5h = "—".to_string();
                                 }
                                 if let Some(w) = g.weekly {
                                     let pct = (w.fraction.unwrap_or(0.0) * 100.0).round() as u16;
@@ -221,8 +221,8 @@ impl AppState {
                             }
                         }
                         if !found_gemini {
-                            row.gemini_5h = "100%".to_string();
-                            row.gemini_wk = "100%".to_string();
+                            row.gemini_5h = "—".to_string();
+                            row.gemini_wk = "—".to_string();
                         }
                         if !found_claude {
                             row.claude_5h = "—".to_string();
