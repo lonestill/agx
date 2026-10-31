@@ -12,7 +12,7 @@ permissions:
 jobs:
   build-macos:
     name: Build macOS (Universal, Apple Silicon, Intel)
-    runs-on: macos-14
+    runs-on: macos-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
