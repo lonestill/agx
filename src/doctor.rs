@@ -1,7 +1,7 @@
 use std::process::Command;
 use std::time::Instant;
 use colored::*;
-use crate::account::{read_active_token, format_expiry};
+use crate::account::{read_active_token, format_expiry_plain};
 use crate::patcher::{discover_targets, GateState};
 use crate::cleaner::{scan_clean_categories, format_bytes};
 
@@ -36,7 +36,7 @@ pub fn check_doctor() -> DoctorReport {
     // 1. Check Active Account & Token
     match read_active_token() {
         Ok(t) => {
-            let exp = format_expiry(t.token.expiry.as_deref());
+            let exp = format_expiry_plain(t.token.expiry.as_deref());
             if exp.contains("expired") {
                 items.push(DoctorItem {
                     title: "Active OAuth Credentials".to_string(),

@@ -516,6 +516,18 @@ pub fn delete_account(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn token_needs_refresh(token: &StandaloneToken) -> bool {
+    if token.token.refresh_token.as_deref().is_none_or(str::is_empty) { return false; }
+    if token.token.access_token.as_deref().is_none_or(str::is_empty) { return true; }
+    token.token.expiry.as_deref()
+        .and_then(|value| DateTime::parse_from_rfc3339(value).ok())
+        .is_none_or(|expiry| (expiry.with_timezone(&Utc) - Utc::now()).num_seconds() <= 300)
+}
+
+pub fn same_credentials(a: &StandaloneToken, b: &StandaloneToken) -> bool {
+    matches!((&a.token.refresh_token, &b.token.refresh_token), (Some(a), Some(b)) if !a.is_empty() && a == b)
+}
+
 pub fn refresh_account_token(token_data: &mut StandaloneToken) -> Result<String, String> {
     let refresh = match &token_data.token.refresh_token {
         Some(r) if !r.is_empty() => r,
@@ -550,12 +562,16 @@ pub fn refresh_account_token(token_data: &mut StandaloneToken) -> Result<String,
         access_token: String,
         expires_in: Option<i64>,
         token_type: Option<String>,
+        refresh_token: Option<String>,
     }
 
     let parsed: RefreshResp = resp.json().map_err(|e| format!("Malformed OAuth response: {}", e))?;
     token_data.token.access_token = Some(parsed.access_token.clone());
     if let Some(tt) = parsed.token_type {
         token_data.token.token_type = Some(tt);
+    }
+    if let Some(refresh) = parsed.refresh_token.filter(|value| !value.is_empty()) {
+        token_data.token.refresh_token = Some(refresh);
     }
     if let Some(exp_sec) = parsed.expires_in {
         let exp_time = Utc::now() + chrono::Duration::seconds(exp_sec);
@@ -566,8 +582,15 @@ pub fn refresh_account_token(token_data: &mut StandaloneToken) -> Result<String,
 }
 
 pub fn format_expiry(expiry_str: Option<&str>) -> String {
+    let text = format_expiry_plain(expiry_str);
+    if text.starts_with("valid") { text.green().to_string() }
+    else if text.starts_with("expired") { text.red().to_string() }
+    else { text.dimmed().to_string() }
+}
+
+pub fn format_expiry_plain(expiry_str: Option<&str>) -> String {
     match expiry_str {
-        None => "unknown".dimmed().to_string(),
+        None => "unknown".to_string(),
         Some(s) => match DateTime::parse_from_rfc3339(s) {
             Ok(dt) => {
                 let now = Utc::now();
@@ -578,22 +601,22 @@ pub fn format_expiry(expiry_str: Option<&str>) -> String {
                     let hours = mins / 60;
                     let days = hours / 24;
                     if days > 0 {
-                        format!("valid ({}d {}h)", days, hours % 24).green().to_string()
+                        format!("valid ({}d {}h)", days, hours % 24).to_string()
                     } else if hours > 0 {
-                        format!("valid ({}h {}m)", hours, mins % 60).green().to_string()
+                        format!("valid ({}h {}m)", hours, mins % 60).to_string()
                     } else {
-                        format!("valid ({}m)", mins).green().to_string()
+                        format!("valid ({}m)", mins).to_string()
                     }
                 } else {
                     let past_mins = (-secs) / 60;
                     if past_mins > 60 {
-                        format!("expired ({}h ago)", past_mins / 60).red().to_string()
+                        format!("expired ({}h ago)", past_mins / 60).to_string()
                     } else {
-                        format!("expired ({}m ago)", past_mins).red().to_string()
+                        format!("expired ({}m ago)", past_mins).to_string()
                     }
                 }
             }
-            Err(_) => "invalid date".dimmed().to_string(),
+            Err(_) => "invalid date".to_string(),
         },
     }
 }
@@ -620,5 +643,42 @@ pub fn sync_ide_state(token: &StandaloneToken) {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod expiry_tests {
+    use super::format_expiry_plain;
+    #[test]
+    fn gui_expiry_has_no_terminal_escapes() {
+        for date in [None, Some("bad"), Some("2000-01-01T00:00:00Z"), Some("2099-01-01T00:00:00Z")] {
+            assert!(!format_expiry_plain(date).contains('\u{1b}'));
+        }
+        assert!(format_expiry_plain(Some("2000-01-01T00:00:00Z")).starts_with("expired"));
+        assert!(format_expiry_plain(Some("2099-01-01T00:00:00Z")).starts_with("valid"));
+    }
+}
+
+#[cfg(test)]
+mod auto_refresh_tests {
+    use super::*;
+    fn token(expiry: Option<String>, refresh: Option<&str>) -> StandaloneToken {
+        StandaloneToken { token: OAuthTokenData { access_token: Some("test-access".into()),
+            token_type: None, refresh_token: refresh.map(str::to_string), expiry },
+            auth_method: "oauth".into(), email: None, saved_at: None }
+    }
+    #[test]
+    fn refreshes_five_minutes_before_expiry() {
+        let near = token(Some((Utc::now() + chrono::Duration::seconds(240)).to_rfc3339()), Some("test-refresh"));
+        let later = token(Some((Utc::now() + chrono::Duration::hours(1)).to_rfc3339()), Some("test-refresh"));
+        assert!(token_needs_refresh(&near)); assert!(!token_needs_refresh(&later));
+        assert!(token_needs_refresh(&token(None, Some("test-refresh"))));
+        assert!(!token_needs_refresh(&token(None, None)));
+    }
+    #[test]
+    fn different_or_missing_credentials_never_match() {
+        assert!(!same_credentials(&token(None, Some("a")), &token(None, Some("b"))));
+        assert!(!same_credentials(&token(None, None), &token(None, None)));
+        assert!(same_credentials(&token(None, Some("a")), &token(None, Some("a"))));
     }
 }

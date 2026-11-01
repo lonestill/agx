@@ -298,3 +298,17 @@ cargo build --release
 ## License
 
 MIT / Apache-2.0
+
+
+## Built-in updates
+
+The desktop app checks `lonestill/agx` GitHub Releases shortly after opening. Use **Check for updates** at the bottom of the sidebar to check again. A newer stable version shows an **Update** button. Installation verifies the release archive against `SHA256SUMS.txt`, replaces the running executable, and offers **Restart agx**. Account data stays in its existing location.
+
+For command-line installations:
+
+```bash
+agx update --check  # Check only
+agx update          # Download, verify and install the latest newer stable release
+```
+
+The updater supports the release archives for macOS ARM64/Intel, Linux x86_64, and Windows x86_64. The executable's directory must be writable. Older versions and prereleases are not installed. Release tags must use semantic versions such as `v1.5.0`, with matching `agx-v1.5.0-<platform>.tar.gz` (or `.zip`) assets and `SHA256SUMS.txt`, as produced by the tagged release workflow. Update the Cargo and Tauri versions before creating the corresponding release tag.

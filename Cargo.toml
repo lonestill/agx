@@ -15,4 +15,15 @@ chrono = { version = "0.4", features = ["serde"] }
 ratatui = { version = "0.30", default-features = false, features = ["crossterm"] }
 crossterm = { version = "0.29" }
 rusqlite = { version = "0.32", features = ["bundled"] }
+tauri = { version = "2.12.5" }
 
+semver = "1"
+sha2 = "0.10"
+flate2 = "1"
+tar = "0.4"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+tempfile = "3"
+self-replace = "1.5"
+
+[build-dependencies]
+tauri-build = { version = "2.0.5" }

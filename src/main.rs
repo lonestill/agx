@@ -9,6 +9,8 @@ mod doctor;
 mod run;
 mod stats;
 mod skills;
+mod gui;
+mod updater;
 
 use clap::{Parser, Subcommand};
 use colored::*;
@@ -21,19 +23,27 @@ use system::*;
 #[derive(Parser)]
 #[command(name = "agx")]
 #[command(author = "lonestill")]
-#[command(version = "1.3.5")]
+#[command(version)]
 #[command(
-    about = "Universal high-performance Antigravity multitool (Accounts, Quotas, Cleaner, Vault, Binary Modding, Stats, Doctor, Skills, TUI)",
-    long_about = "agx launches an interactive TUI dashboard by default when run without arguments.\nYou can also run dedicated subcommands for scriptable CLI execution.\n\nGitHub Repository: https://github.com/lonestill/agx"
+    about = "Universal high-performance Antigravity multitool (Accounts, Quotas, Cleaner, Vault, Binary Modding, Stats, Doctor, Skills, TUI, GUI)",
+    long_about = "agx launches an interactive TUI dashboard by default when run without arguments, or modern desktop GUI with --gui.\nYou can also run dedicated subcommands for scriptable CLI execution.\n\nGitHub Repository: https://github.com/lonestill/agx"
 )]
 struct Cli {
+    /// Launch the modern desktop GUI window
+    #[arg(long, help = "Launch the modern desktop GUI window")]
+    gui: bool,
+
     #[command(subcommand)]
     command: Option<Commands>,
 }
 
-
 #[derive(Subcommand)]
 enum Commands {
+    /// Check GitHub Releases or install the latest stable version
+    Update { #[arg(long)] check: bool },
+    /// Launch the modern desktop GUI window
+    Gui,
+
     /// Launch the interactive TUI dashboard (default behavior)
     Tui,
 
@@ -219,7 +229,30 @@ enum VaultCommands {
 fn main() {
     let cli = Cli::parse();
 
+    if cli.gui {
+        if let Err(e) = gui::run_gui() {
+            eprintln!("{} Failed to run GUI: {}", "[!!]".red().bold(), e);
+            std::process::exit(1);
+        }
+        return;
+    }
+
     match cli.command {
+        Some(Commands::Update { check }) => {
+            let result = if check {
+                updater::check().map(|info| println!("Installed: {} · {}", info.current_version, info.message))
+            } else {
+                updater::install().map(|version| println!("Installed {version}. Restart agx to use the update."))
+            };
+            if let Err(error) = result { eprintln!("{error}"); std::process::exit(1); }
+        }
+
+        Some(Commands::Gui) => {
+            if let Err(e) = gui::run_gui() {
+                eprintln!("{} Failed to run GUI: {}", "[!!]".red().bold(), e);
+                std::process::exit(1);
+            }
+        }
         None | Some(Commands::Tui) => {
             if let Err(e) = tui::run_tui() {
                 eprintln!("{} Failed to run TUI: {}", "[!!]".red().bold(), e);

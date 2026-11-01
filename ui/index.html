@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>agx — Antigravity Multi-Tool</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand-group">
+        <div class="brand-badge">
+          <span class="brand-title">agx</span>
+          <span class="brand-ver" id="app-version">v1.3.6</span>
+        </div>
+        <div class="brand-caption">Antigravity toolkit</div><div class="status-indicator">
+          
+          <span class="status-text" id="connection-status">Desktop workspace</span>
+        </div>
+      </div>
+
+      <!-- Navigation Tabs -->
+      <nav class="nav-tabs">
+        <button class="nav-tab active" data-tab="accounts">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <polyline points="16 11 18 13 22 9" />
+          </svg>
+          <span>Accounts & quota</span>
+        </button>
+        <button class="nav-tab" data-tab="patcher">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          <span>Binary tools</span>
+        </button>
+        <button class="nav-tab" data-tab="cleaner">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6" />
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+          </svg>
+          <span>Storage</span>
+        </button>
+        <button class="nav-tab" data-tab="doctor">
+          <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <span>Diagnostics</span>
+        </button>
+      </nav>
+
+      <!-- Active Profile Pill -->
+      <div class="header-actions"><button id="btn-auto-best" class="btn-primary-ghost" title="Auto-switch to account with highest available quota">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+            <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+          </svg>
+          <span>Find best account</span>
+        </button><div class="active-profile-pill" id="active-profile-chip" title="Current Active Account"><span class="active-label">CURRENT ACCOUNT</span><span class="active-name" id="header-active-name">—</span></div>
+        
+        
+      </div>
+      <div class="update-controls"><button id="btn-check-update" class="btn-secondary">Check for updates</button><span id="update-status" role="status" aria-live="polite"></span></div>
+    </header>
+
+    <!-- Main Content Panes -->
+    <main class="app-body">
+      <!-- TAB 1: ACCOUNTS & QUOTAS -->
+      <section class="tab-content active" id="tab-accounts"><div class="workspace-header"><div><h1 class="workspace-title">Accounts & quota</h1></div></div>
+        <div class="hero-card"><div class="hero-card-header"><div class="hero-title-group"><span class="hero-badge">Current account</span><h2 class="hero-name" id="hero-account-name">Loading...</h2><span class="hero-meta" id="hero-account-meta">—</span></div><div class="hero-actions"><button id="btn-refresh-quotas" class="btn-secondary" title="Refresh Live Quotas">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+                <span>Refresh</span>
+              </button><button id="btn-open-add-modal" class="btn-accent">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="6" y1="12" x2="18" y2="12" />
+                </svg>
+                <span>Add account</span>
+              </button></div></div><div class="gauges-grid"><div class="gauge-card" id="gauge-gemini-5h"><div class="gauge-header"><span class="gauge-model">Gemini Models</span><span class="gauge-window">5-hour window</span></div><div class="gauge-visual"><svg class="progress-ring" viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="50"/><circle class="ring-bar" id="ring-gemini-5h" cx="60" cy="60" r="50"/></svg><div class="gauge-center-text"><span class="gauge-pct" id="pct-gemini-5h">—</span><span class="gauge-pct-sub">available</span></div></div><div class="gauge-footer"><span class="gauge-reset" id="reset-gemini-5h">loading...</span></div></div><div class="gauge-card" id="gauge-gemini-wk"><div class="gauge-header"><span class="gauge-model">Gemini Models</span><span class="gauge-window">Weekly window</span></div><div class="gauge-visual"><svg class="progress-ring" viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="50"/><circle class="ring-bar" id="ring-gemini-wk" cx="60" cy="60" r="50"/></svg><div class="gauge-center-text"><span class="gauge-pct" id="pct-gemini-wk">—</span><span class="gauge-pct-sub">available</span></div></div><div class="gauge-footer"><span class="gauge-reset" id="reset-gemini-wk">loading...</span></div></div><div class="gauge-card" id="gauge-claude-5h"><div class="gauge-header"><span class="gauge-model">Claude & GPT</span><span class="gauge-window">5-hour window</span></div><div class="gauge-visual"><svg class="progress-ring" viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="50"/><circle class="ring-bar" id="ring-claude-5h" cx="60" cy="60" r="50"/></svg><div class="gauge-center-text"><span class="gauge-pct" id="pct-claude-5h">—</span><span class="gauge-pct-sub">available</span></div></div><div class="gauge-footer"><span class="gauge-reset" id="reset-claude-5h">loading...</span></div></div><div class="gauge-card" id="gauge-claude-wk"><div class="gauge-header"><span class="gauge-model">Claude & GPT</span><span class="gauge-window">Weekly window</span></div><div class="gauge-visual"><svg class="progress-ring" viewBox="0 0 120 120"><circle class="ring-bg" cx="60" cy="60" r="50"/><circle class="ring-bar" id="ring-claude-wk" cx="60" cy="60" r="50"/></svg><div class="gauge-center-text"><span class="gauge-pct" id="pct-claude-wk">—</span><span class="gauge-pct-sub">available</span></div></div><div class="gauge-footer"><span class="gauge-reset" id="reset-claude-wk">loading...</span></div></div></div></div>
+        <div class="section-container"><div class="section-header"><h3 class="section-title">Your accounts</h3><span class="section-subtitle">Manage your saved profiles and switch between accounts.</span></div><div class="accounts-grid" id="accounts-cards-grid"><div class="skeleton-card">Loading accounts...</div></div></div>
+      </section>
+
+      <!-- TAB 2: BINARY GATES (PATCHER) -->
+      <section class="tab-content" id="tab-patcher"><div class="workspace-header"><div><h1 class="workspace-title">Binary tools</h1></div></div>
+        <div class="section-container">
+          <div class="section-header-row">
+            <div>
+              <h2 class="section-title">Binary Integrity & Auth Gate Patcher</h2>
+              <p class="section-desc">Inspect, patch or restore byte patterns to unlock internal developer gates and features.</p>
+            </div>
+            <div class="action-buttons-group">
+              <button id="btn-patch-all" class="btn-accent">Patch All</button>
+              <button id="btn-restore-all" class="btn-secondary">Restore All</button>
+            </div>
+          </div>
+
+          <div class="targets-list" id="targets-list-container">
+            <!-- Dynamically populated -->
+            <div class="skeleton-card">Scanning binary targets...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 3: VACUUM CLEANER -->
+      <section class="tab-content" id="tab-cleaner"><div class="workspace-header"><div><h1 class="workspace-title">Storage</h1></div></div>
+        <div class="section-container">
+          <div class="cleaner-hero">
+            <div class="cleaner-hero-text">
+              <span class="cleaner-tag">Cache size</span>
+              <h2 class="cleaner-size" id="cleaner-total-size">0 MB</h2>
+              <p class="cleaner-desc">Select categories below to safely purge orphaned session caches, build logs, and crash reports.</p>
+            </div>
+            <button id="btn-purge-selected" class="btn-danger-large">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              <span>Purge Selected</span>
+            </button>
+          </div>
+
+          <div class="categories-list" id="cleaner-categories-container">
+            <!-- Dynamically populated -->
+            <div class="skeleton-card">Scanning cache directories...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TAB 4: DOCTOR -->
+      <section class="tab-content" id="tab-doctor"><div class="workspace-header"><div><h1 class="workspace-title">Diagnostics</h1></div></div>
+        <div class="section-container">
+          <div class="section-header-row">
+            <div>
+              <h2 class="section-title">System Health & Doctor</h2>
+              <p class="section-desc">Diagnostic health checks across binaries, tokens, API connectivity, and database locks.</p>
+            </div>
+            <button id="btn-re-doctor" class="btn-secondary">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="btn-icon">
+                <polyline points="23 4 23 10 17 10" />
+                <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+              </svg>
+              <span>Re-check</span>
+            </button>
+          </div>
+
+          <!-- Doctor Summary Badges -->
+          <div class="doctor-badges-row">
+            <div class="doctor-stat-badge stat-ok">
+              <span class="stat-count" id="doc-ok-count">0</span>
+              <span class="stat-label">HEALTHY</span>
+            </div>
+            <div class="doctor-stat-badge stat-warn">
+              <span class="stat-count" id="doc-warn-count">0</span>
+              <span class="stat-label">WARNINGS</span>
+            </div>
+            <div class="doctor-stat-badge stat-fail">
+              <span class="stat-count" id="doc-fail-count">0</span>
+              <span class="stat-label">FAILURES</span>
+            </div>
+          </div>
+
+          <div class="doctor-items-list" id="doctor-items-container">
+            <!-- Dynamically populated -->
+            <div class="skeleton-card">Running diagnostics...</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Notification Toast -->
+    <div class="toast-container" id="toast-container" role="status" aria-live="polite"></div>
+
+    <!-- Modal: Add / Import Account -->
+    <div class="modal-backdrop" id="modal-add-account">
+      <div class="modal-dialog" role="dialog" aria-modal="true" aria-labelledby="add-account-title">
+        <div class="modal-header">
+          <h3 id="add-account-title">Add account</h3>
+          <button class="modal-close" id="modal-close-btn" aria-label="Close dialog">&times;</button>
+        </div>
+        <div class="modal-body">
+          <label class="form-label" for="input-account-name">Profile Name</label>
+          <input type="text" id="input-account-name" class="form-input" placeholder="Profile name" />
+
+          <label class="form-label" for="input-account-json">OAuth Token Data (JSON or leave empty to clone active)</label>
+          <textarea id="input-account-json" class="form-textarea" placeholder="Paste ~/.gemini/antigravity/token.json contents, or leave empty to snapshot active credentials"></textarea>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary" id="modal-cancel-btn">Cancel</button>
+          <button class="btn-accent" id="modal-submit-btn">Save Profile</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
